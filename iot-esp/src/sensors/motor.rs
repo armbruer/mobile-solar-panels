@@ -1,83 +1,183 @@
-use esp_idf_hal::{
-    gpio::{OutputPin},
-};
+use embedded_hal::digital::v2::PinState;
+//use esp_idf_hal::gpio::OutputPin;
 use esp_idf_sys::EspError;
 
 use std::thread;
 use std::time::Duration;
 
-use embedded_hal::digital::blocking::OutputPin;
-
-use esp_idf_hal::peripherals::Peripherals;
-
-pub struct StepperMotor {
-    in1: OutputPin,
-    in2: OutputPin,
-    in3: OutputPin,
-    in4: OutputPin,
+pub struct StepperMotor<
+    OUTPUT_PIN1: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+    OUTPUT_PIN2: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+    OUTPUT_PIN3: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+    OUTPUT_PIN4: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+> {
+    pin1: OUTPUT_PIN1,
+    pin2: OUTPUT_PIN2,
+    pin3: OUTPUT_PIN3,
+    pin4: OUTPUT_PIN4,
 }
 
-impl StepperMotor {
+impl<
+        OUTPUT_PIN1: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+        OUTPUT_PIN2: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+        OUTPUT_PIN3: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+        OUTPUT_PIN4: esp_idf_hal::gpio::OutputPin + embedded_hal::digital::v2::OutputPin,
+    > StepperMotor<OUTPUT_PIN1, OUTPUT_PIN2, OUTPUT_PIN3, OUTPUT_PIN4>
+{
     pub fn new(
-        pin1: OutputPin,
-        pin2: OutputPin,
-        pin3: OutputPin,
-        pin4: OutputPin,
-    ) -> Result<StepperMotor, EspError> {
-
-        let in1 = pin1.into_output()?
-        let in2 = pin2.into_output()?
-        let in3 = pin3.into_output()?
-        let in4 = pin4.into_output()?
-
-        Ok(StepperMotor { in1,  in2, in3, in4})
+        pin1: OUTPUT_PIN1,
+        pin2: OUTPUT_PIN2,
+        pin3: OUTPUT_PIN3,
+        pin4: OUTPUT_PIN4,
+    ) -> Result<StepperMotor<OUTPUT_PIN1, OUTPUT_PIN2, OUTPUT_PIN3, OUTPUT_PIN4>, EspError> {
+        Ok(StepperMotor {
+            pin1,
+            pin2,
+            pin3,
+            pin4,
+        })
     }
 
-    pub fn rotateRight(motorSpeed: i32)
-    {
-        setMotor(false, false, false, true, motorSpeed);
-        setMotor(false, false, true, true, motorSpeed);
-        setMotor(false, false, true, false, motorSpeed);
-        setMotor(false, true, true, false, motorSpeed);
-        setMotor(false, true, false, false, motorSpeed);
-        setMotor(true, true, false, false, motorSpeed);
-        setMotor(true, false, false, false, motorSpeed);
-        setMotor(true, false, false, true, motorSpeed);
+    pub fn rotateRight(&mut self, motorSpeed: u32) {
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            PinState::High,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::High,
+            PinState::High,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::High,
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            motorSpeed,
+        );
     }
 
-    pub fn rotateLeft(motorSpeed: i32)
-    {
-        setMotor(true, false, false, false, motorSpeed);
-        setMotor(true, true, false, false, motorSpeed);
-        setMotor(false, true, false, false, motorSpeed);
-        setMotor(false, true, true, false, motorSpeed);
-        setMotor(false, false, true, false, motorSpeed);
-        setMotor(false, false, true, true, motorSpeed);
-        setMotor(false, false, false, true, motorSpeed);
-        setMotor(true, false, false, true, motorSpeed);
+    pub fn rotateLeft(&mut self, motorSpeed: u32) {
+        self.setMotor(
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::High,
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::High,
+            PinState::High,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            PinState::Low,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            PinState::High,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            motorSpeed,
+        );
+        self.setMotor(
+            PinState::High,
+            PinState::Low,
+            PinState::Low,
+            PinState::High,
+            motorSpeed,
+        );
     }
 
-    pub fn stopMotor()
-    {
-        setMotor(false, false, false, false, 0);
+    pub fn stopMotor(&mut self) {
+        self.setMotor(
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            PinState::Low,
+            0,
+        );
     }
 
-    pub fn setMotor(&mut self, in1: bool, in2: bool, in3: bool, in4: bool, motorSpeed: i32)
-    {
-        setPin(self.in1, in1);
-        setPin(self.in2, in2);
-        setPin(self.in3, in3);
-        setPin(self.in4, in4);
-        thread::sleep(Duration::from_millis(motorSpeed));
-    }
-
-    pub fn setPin(pin: OutputPin, high: bool)
-    {
-        if high {
-            pin.set_high()?
-        }
-        else {
-            pin.set_low()?
-        }
+    pub fn setMotor(
+        &mut self,
+        in1: PinState,
+        in2: PinState,
+        in3: PinState,
+        in4: PinState,
+        motorSpeed: u32,
+    ) {
+        self.pin1.set_state(in1);
+        self.pin2.set_state(in2);
+        self.pin3.set_state(in3);
+        self.pin4.set_state(in4);
+        thread::sleep(Duration::from_micros(motorSpeed as u64));
     }
 }
