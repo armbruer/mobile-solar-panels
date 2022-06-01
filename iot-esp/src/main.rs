@@ -15,6 +15,8 @@ fn main() -> Result<(), EspError> {
     let lowSpeed = 10000; // max: 16000
     let highSpeed = 1000;
 
+    let mut a2 = pins.gpio34.into_analog_atten_11db()?;
+
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
     let mut temp_sensor = TemperatureSensor::new(peripherals.i2c0, pins.gpio21, pins.gpio22)?;
@@ -41,6 +43,11 @@ fn main() -> Result<(), EspError> {
 
         step_motor1.stopMotor();
         step_motor2.stopMotor();
+        log::info!(
+            "A2 sensor reading: {}mV",
+            123 // powered_adc1.read(&mut a2).unwrap()
+        );
+
         std::thread::sleep(std::time::Duration::from_secs(2));
     }
 }
