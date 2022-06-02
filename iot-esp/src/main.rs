@@ -1,5 +1,7 @@
 mod sensors;
 
+use adc_interpolator::AdcInterpolator;
+use esp_idf_hal::adc;
 use esp_idf_hal::prelude::Peripherals;
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use esp_idf_sys::EspError;
@@ -32,6 +34,35 @@ fn main() -> Result<(), EspError> {
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
+    let config_photoresistor = adc_interpolator::Config {
+        max_voltage: 3300, // 3300 mV maximum voltage
+        precision: 12,     // 12-bit precision
+        voltage_to_values: [
+            (100, 100), // Above 3000 mV and below 200 mV is likely invalid
+            (2000, 2000),
+            (3500, 3500),
+        ],
+    };
+
+    let config_ir_sensor = adc_interpolator::Config {
+        max_voltage: 3300, // 3300 mV maximum voltage
+        precision: 12,     // 12-bit precision
+        voltage_to_values: [
+            (100, 100), // Above 3000 mV and below 200 mV is likely invalid
+            (2000, 2000),
+            (3500, 3500),
+        ],
+    };
+
+    let pin_photoresistor = pins.gpio34.into_analog_atten_11db()?;
+    let pin_ir_sensor = pins.gpio35.into_analog_atten_11db()?;
+    let mut interpolator_photoresistor =
+        AdcInterpolator::new(pin_photoresistor, config_photoresistor);
+    let mut interpolator_ir_sensor = AdcInterpolator::new(pin_ir_sensor, config_ir_sensor);
+
+    let mut powered_adc = adc::PoweredAdc::new(
+        peripherals.adc1,
+        adc::config::Config::new().calibration(true),
     )?;
 
     loop {
@@ -40,10 +71,16 @@ fn main() -> Result<(), EspError> {
             step_motor1.rotateRight(highSpeed);
             step_motor2.rotateLeft(highSpeed);
         }
+        let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+        let ir_sensor = interpolator_ir_sensor.read(&mut powered_adc).unwrap();
 
         step_motor1.stopMotor();
         step_motor2.stopMotor();
         log::info!(
+            "Photoresitor: {:#?}, IR Sensor: {:#?}",
+            photoresistor,
+            ir_sensor
+        );
             "A2 sensor reading: {}mV",
             123 // powered_adc1.read(&mut a2).unwrap()
         );
