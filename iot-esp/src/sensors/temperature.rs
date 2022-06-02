@@ -33,8 +33,11 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> TemperatureSensor<I2C,
         Ok(TemperatureSensor { bmp180 })
     }
 
-    pub fn get_temperature(&mut self) -> Result<f32, EspError> {
-        let temperature = self.bmp180.get_temperature(&mut esp_idf_hal::delay::Ets);
-        Ok(temperature)
+    pub fn get_temperature(&mut self) -> f32 {
+        self.bmp180.get_temperature(&mut esp_idf_hal::delay::Ets)
+    }
+
+    pub fn get_pressure(&mut self) -> i32 {
+        self.bmp180.get_pressure(&mut esp_idf_hal::delay::Ets)
     }
 }
