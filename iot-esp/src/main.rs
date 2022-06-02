@@ -1,10 +1,17 @@
+mod networking;
 mod sensors;
+
+use std::sync::Arc;
 
 use adc_interpolator::AdcInterpolator;
 use esp_idf_hal::adc;
 use esp_idf_hal::prelude::Peripherals;
-use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+
+use esp_idf_svc::netif::EspNetifStack;
+use esp_idf_svc::nvs::EspDefaultNvs;
+use esp_idf_svc::sysloop::EspSysLoopStack;
 use esp_idf_sys::EspError;
+use esp_idf_sys::{self as _, sleep}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 use sensors::motor::StepperMotor;
 use sensors::temperature::TemperatureSensor;
@@ -63,6 +70,17 @@ fn main() -> Result<(), EspError> {
     let mut powered_adc = adc::PoweredAdc::new(
         peripherals.adc1,
         adc::config::Config::new().calibration(true),
+    )?;
+
+    let netif_stack = Arc::new(EspNetifStack::new()?);
+    let sys_loop_stack = Arc::new(EspSysLoopStack::new()?);
+    let default_nvs = Arc::new(EspDefaultNvs::new()?);
+
+    // TODO hostname
+    let _wifi = networking::wifi::wifi(
+        netif_stack.clone(),
+        sys_loop_stack.clone(),
+        default_nvs.clone(),
     )?;
 
     let thread_stepper_motor1 = std::thread::spawn(move || {
