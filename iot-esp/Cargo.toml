@@ -24,6 +24,7 @@ embedded-hal = "0.2.7"
 log = "0.4.17"
 adc-interpolator = "0.2.0"
 embedded-svc = "0.21.2"
+coap-lite = "0.9.0"
 
 [build-dependencies]
 embuild = "0.29.1"

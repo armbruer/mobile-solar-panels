@@ -4,6 +4,7 @@ mod sensors;
 use std::sync::Arc;
 
 use adc_interpolator::AdcInterpolator;
+use coap_lite::RequestType;
 use esp_idf_hal::adc;
 use esp_idf_hal::prelude::Peripherals;
 
@@ -15,6 +16,7 @@ use esp_idf_sys::{self as _, sleep}; // If using the `binstart` feature of `esp-
 
 use sensors::motor::StepperMotor;
 use sensors::temperature::TemperatureSensor;
+use networking::coap::Connection;
 
 fn main() -> Result<(), EspError> {
     esp_idf_sys::link_patches();
@@ -125,5 +127,12 @@ fn main() -> Result<(), EspError> {
     thread_stepper_motor2.join().unwrap();
     thread_measure.join().unwrap();
 
+    let conn = Connection::new();
+
     Ok(())
+}
+
+
+fn send_sensor_data(conn: Connection, temperature: f32, photoresistor: i32, infrared: i32) {
+    conn.send(RequestType::Post, addr, "/sensors", message_id, payload)
 }
