@@ -14,26 +14,26 @@ fn main() -> Result<(), EspError> {
 
     let peripherals = Peripherals::take().unwrap();
     let pins = peripherals.pins;
-    let lowSpeed = 10000; // max: 16000
-    let highSpeed = 1000;
-
-    let mut a2 = pins.gpio34.into_analog_atten_11db()?;
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
+
     let mut temp_sensor = TemperatureSensor::new(peripherals.i2c0, pins.gpio21, pins.gpio22)?;
-    let mut step_motor1 = StepperMotor::new(
+
+    let mut stepper_motor1 = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-    )?;
+    );
 
-    let mut step_motor2 = StepperMotor::new(
+    let mut stepper_motor2 = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
+    );
+
     let config_photoresistor = adc_interpolator::Config {
         max_voltage: 3300, // 3300 mV maximum voltage
         precision: 12,     // 12-bit precision
@@ -65,26 +65,47 @@ fn main() -> Result<(), EspError> {
         adc::config::Config::new().calibration(true),
     )?;
 
-    loop {
-        log::info!("rotateRight");
-        for _ in 0..5000 {
-            step_motor1.rotateRight(highSpeed);
-            step_motor2.rotateLeft(highSpeed);
+    let thread_stepper_motor1 = std::thread::spawn(move || {
+        for _ in 0..20 {
+            for _ in 0..200 {
+                stepper_motor1.rotateRight(sensors::motor::Speed::HighSpeed);
+            }
+            stepper_motor1.stopMotor();
+            std::thread::sleep(std::time::Duration::from_secs(1));
         }
+    });
+    let thread_stepper_motor2 = std::thread::spawn(move || {
+        for _ in 0..20 {
+            for _ in 0..200 {
+                stepper_motor2.rotateLeft(sensors::motor::Speed::HighSpeed);
+            }
+            stepper_motor2.stopMotor();
+            std::thread::sleep(std::time::Duration::from_secs(1));
+        }
+    });
+
+    let thread_measure = std::thread::spawn(move || loop {
         let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
         let ir_sensor = interpolator_ir_sensor.read(&mut powered_adc).unwrap();
 
-        step_motor1.stopMotor();
-        step_motor2.stopMotor();
         log::info!(
             "Photoresitor: {:#?}, IR Sensor: {:#?}",
             photoresistor,
             ir_sensor
         );
-            "A2 sensor reading: {}mV",
-            123 // powered_adc1.read(&mut a2).unwrap()
+
+        log::info!(
+            "Temperature: {} °C, Pressure: {} Pa",
+            temp_sensor.get_temperature(),
+            temp_sensor.get_pressure()
         );
 
         std::thread::sleep(std::time::Duration::from_secs(2));
-    }
+    });
+
+    thread_stepper_motor1.join().unwrap();
+    thread_stepper_motor2.join().unwrap();
+    thread_measure.join().unwrap();
+
+    Ok(())
 }
