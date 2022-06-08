@@ -2,6 +2,7 @@ mod networking;
 mod sensors;
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
@@ -26,6 +27,7 @@ fn main() -> Result<(), EspError> {
 
     // Bind the log crate to the ESP Logging facilities
     esp_idf_svc::log::EspLogger::initialize_default();
+    //esp_idf_svc::log::EspLogger.set_target_level("rust-logging", esp_idf_svc::log::Level::Debug);
 
     let mut temp_sensor = TemperatureSensor::new(peripherals.i2c0, pins.gpio21, pins.gpio22)?;
 
@@ -62,6 +64,7 @@ fn main() -> Result<(), EspError> {
             (3500, 3500),
         ],
     };
+    /*
 
     let pin_photoresistor = pins.gpio34.into_analog_atten_11db()?;
     let pin_ir_sensor = pins.gpio35.into_analog_atten_11db()?;
@@ -74,6 +77,8 @@ fn main() -> Result<(), EspError> {
         adc::config::Config::new().calibration(true),
     )?;
 
+    */
+
     let netif_stack = Arc::new(EspNetifStack::new()?);
     let sys_loop_stack = Arc::new(EspSysLoopStack::new()?);
     let default_nvs = Arc::new(EspDefaultNvs::new()?);
@@ -85,6 +90,7 @@ fn main() -> Result<(), EspError> {
         default_nvs.clone(),
     )?;
 
+    /* 
     let thread_stepper_motor1 = std::thread::spawn(move || {
         for _ in 0..20 {
             for _ in 0..200 {
@@ -127,12 +133,28 @@ fn main() -> Result<(), EspError> {
     thread_stepper_motor2.join().unwrap();
     thread_measure.join().unwrap();
 
-    let conn = Connection::new();
+    */
+    let mut conn = Connection::new();
 
+    loop {
+        send_sensor_data(&mut conn, "192.168.22.137:443", &vec![1.0, 2.0, 3.0], &vec![4, 5, 6], &vec![7, 8, 9]);
+        log::info!("Sent a message");
+        std::thread::sleep(Duration::from_secs(2));
+
+    }
     Ok(())
 }
 
 
-fn send_sensor_data(conn: Connection, temperature: f32, photoresistor: i32, infrared: i32) {
-    conn.send(RequestType::Post, addr, "/sensors", message_id, payload)
+fn send_sensor_data(conn: &mut Connection, addr: &str, temperature: &[f32], photoresistor: &[i32], infrared: &[i32]) {
+    let mut payload = vec![];
+    
+    // TODO prevent fragementation
+    for ((t,p),i) in temperature.iter().zip(photoresistor.iter()).zip(infrared.iter()) {
+        payload.extend_from_slice(&t.to_ne_bytes());
+        payload.extend_from_slice(&p.to_ne_bytes());
+        payload.extend_from_slice(&i.to_ne_bytes());
+    }
+
+    conn.send(RequestType::Post, addr, "/sensor/data", payload);
 }
