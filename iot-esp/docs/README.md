@@ -1,5 +1,16 @@
 # iot_esp
 
+## Wifi Configuration
+
+Add the following to the `devcontainer.json` file to setup Wifi:
+
+```
+"containerEnv": {
+    "RUST_ESP32_WIFI_SSID": "<SSID>",
+    "RUST_ESP32_WIFI_PASS": "<PASS>",
+},
+```
+
 ## Dev Containers
 This repository offers Dev Containers supports for:
 -  [Gitpod](https://gitpod.io/)
@@ -61,55 +72,3 @@ simulating in Wokwi is also added.
     select `Build & Flash`.
     - From UI: Press `Build & Flash` on the left side of the Status Bar.
 - Any alternative flashing method from host machine.
-
-
-### Wokwi Simulation
-When using a custom Wokwi project, please change the `WOKWI_PROJECT_ID` in
-`run-wokwi.sh`. If no project id is specified, a DevKit for esp32 will be
-used.
-> **Warning**
->
->  ESP32-S3 is not available in Wokwi
-
-- Terminal approach:
-
-    ```
-    scripts/run-wokwi.sh [debug | release]
-    ```
-    > If no argument is passed, `release` will be used as default
-
-- UI approach:
-
-    The default test task is already set to build the project, and it can be used
-    in VS Code and Gitpod:
-    - From the [Command Palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette) (`Ctrl-Shift-P` or `Cmd-Shift-P`) run the `Tasks: Run Test Task` command
-    - With `Ctrl-Shift-,` or `Cmd-Shift-,`
-        > **Note**
-        >
-        > This Shortcut is not available in Gitpod by default.
-    - From the [Command Palette](https://code.visualstudio.com/docs/getstarted/userinterface#_command-palette) (`Ctrl-Shift-P` or `Cmd-Shift-P`) run the `Tasks: Run Task` command and
-    select `Build & Run Wokwi`.
-    - From UI: Press `Build & Run Wokwi` on the left side of the Status Bar.
-
-> **Warning**
->
->  The simulation will pause if the browser tab is in the background.This may
-> affect the execution, specially when debuging.
-
-#### Debuging with Wokwi
-
-Wokwi offers debugging with GDB.
-
-- Terminal approach:
-    ```
-    $HOME/.espressif/tools/xtensa-esp32-elf/esp-2021r2-patch3-8.4.0/xtensa-esp32-elf/bin/xtensa-esp32-elf-gdb target/xtensa-esp32-espidf/debug/iot_esp -ex "target remote localhost:9333"
-    ```
-
-    > [Wokwi Blog: List of common GDB commands for debugging.](https://blog.wokwi.com/gdb-avr-arduino-cheatsheet/?utm_source=urish&utm_medium=blog)
-- UI approach:
-    1. Run the Wokwi Simulation in `debug` profile
-    2. Go to `Run and Debug` section of the IDE (`Ctrl-Shift-D or Cmd-Shift-D`)
-    3. Start Debugging by pressing the Play Button or pressing `F5`
-    4. Choose the proper user:
-        - `esp` when using VS Code or GitHub Codespaces
-        - `gitpod` when using Gitpod
