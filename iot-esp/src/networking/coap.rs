@@ -1,15 +1,15 @@
 use coap_lite::{CoapRequest, RequestType, MessageType, Packet, CoapResponse, error::MessageError};
-use std::{net::{SocketAddr, UdpSocket}, time::Duration};
+use std::{net::{SocketAddr, UdpSocket}, time::Duration, io::ErrorKind};
 
 pub struct Connection {
     socket: UdpSocket,
     token: u16,
-    message_id: u16
+    message_id: u16,
 }
 
 impl Connection {
     pub fn new() -> Connection {
-        let socket = UdpSocket::bind("127.0.0.1:0").unwrap();
+        let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
         let mut con =  Connection { socket, token: 0, message_id: 0 };
         
         con.set_timeout(Some(Duration::from_millis(500)));
@@ -36,7 +36,9 @@ impl Connection {
             .expect("Could not send the data");
 
         log::warn!("We are even further!");
-        self.wait_for_response(request)
+        let returns = self.wait_for_response(request);
+        log::warn!("got: {:#?}", returns);
+        returns
     }
 
     fn wait_for_response(&mut self, req: CoapRequest<SocketAddr>) -> Option<CoapResponse> {
@@ -46,6 +48,7 @@ impl Connection {
         let mut response = None;
 
         while let Ok(res) = self.recv() {
+            log::warn!("wait_for_response: {:#?}", res);
             if res.message.header.get_type() == MessageType::Acknowledgement 
                 && res.message.header.message_id == req.message.header.message_id {
                 recvd_ack = true;
@@ -70,13 +73,16 @@ impl Connection {
 
     fn recv(&mut self) -> Result<CoapResponse, MessageError> {
         let mut buf = [0; 1500];
-        
-        
+
         let (nread, src) = loop {
+            log::warn!("recv()");
             let res = self.socket.recv_from(&mut buf);
+            log::warn!("recv(): {:#?}", res);
             match res {
                 Ok(res) => break res,
-                Err(e) => std::thread::sleep(Duration::from_secs(1)),
+                Err(e) if e.kind() == ErrorKind::WouldBlock /* = TimedOut */ => return Err(MessageError::InvalidTokenLength),
+                Err(e) if e.kind() == ErrorKind::TimedOut => return Err(MessageError::InvalidTokenLength),
+                Err(e) => panic!("{:#?}", e),
             }
         };
 
@@ -88,7 +94,7 @@ impl Connection {
     }
 
     pub fn set_timeout(&mut self, dur: Option<Duration>) {
-        self.socket.set_read_timeout(dur);
+        self.socket.set_read_timeout(dur).unwrap();
     }
 
 

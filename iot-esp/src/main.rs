@@ -137,12 +137,11 @@ fn main() -> Result<(), EspError> {
     let mut conn = Connection::new();
 
     loop {
-        send_sensor_data(&mut conn, "192.168.22.137:443", &vec![1.0, 2.0, 3.0], &vec![4, 5, 6], &vec![7, 8, 9]);
+        send_sensor_data(&mut conn, "10.42.0.1:5683", &vec![1.0, 2.0, 3.0], &vec![4, 5, 6], &vec![7, 8, 9]);
         log::info!("Sent a message");
         std::thread::sleep(Duration::from_secs(2));
 
     }
-    Ok(())
 }
 
 
