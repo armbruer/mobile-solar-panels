@@ -1,5 +1,9 @@
-use coap_lite::{CoapRequest, RequestType, MessageType, Packet, CoapResponse, error::MessageError};
-use std::{net::{SocketAddr, UdpSocket}, time::Duration, io::ErrorKind};
+use coap_lite::{error::MessageError, CoapRequest, CoapResponse, MessageType, Packet, RequestType};
+use std::{
+    io::ErrorKind,
+    net::{SocketAddr, UdpSocket},
+    time::Duration,
+};
 
 pub struct Connection {
     socket: UdpSocket,
@@ -10,19 +14,29 @@ pub struct Connection {
 impl Connection {
     pub fn new() -> Connection {
         let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-        let mut con =  Connection { socket, token: 0, message_id: 0 };
-        
+        let mut con = Connection {
+            socket,
+            token: 0,
+            message_id: 0,
+        };
+
         con.set_timeout(Some(Duration::from_millis(500)));
         con
     }
 
-    pub fn send(&mut self, rtype: RequestType, addr: &str, path: &str, payload: Vec<u8>) -> Option<CoapResponse> {
+    pub fn send(
+        &mut self,
+        rtype: RequestType,
+        addr: &str,
+        path: &str,
+        payload: Vec<u8>,
+    ) -> Option<CoapResponse> {
         log::warn!("We are here!");
         let mut request: CoapRequest<SocketAddr> = CoapRequest::new();
-        
+
         request.set_method(rtype);
         request.set_path(path);
-        
+
         self.token += 1;
         self.message_id += 1;
         request.message.set_token(self.token.to_le_bytes().to_vec());
@@ -49,15 +63,17 @@ impl Connection {
 
         while let Ok(res) = self.recv() {
             log::warn!("wait_for_response: {:#?}", res);
-            if res.message.header.get_type() == MessageType::Acknowledgement 
-                && res.message.header.message_id == req.message.header.message_id {
+            if res.message.header.get_type() == MessageType::Acknowledgement
+                && res.message.header.message_id == req.message.header.message_id
+            {
                 recvd_ack = true;
                 log::info!("Received ack: {:#?}", res.message.header.message_id);
             }
 
             // TODO handle case: acknowledge missing, but response received
-            if res.message.get_token() == req.message.get_token() 
-                && res.message.header.get_type() == MessageType::Confirmable {
+            if res.message.get_token() == req.message.get_token()
+                && res.message.header.get_type() == MessageType::Confirmable
+            {
                 recvd_response = true;
                 response = Some(res);
                 log::info!("Received reponse: {:#?}", response.as_ref().unwrap());
@@ -75,13 +91,13 @@ impl Connection {
         let mut buf = [0; 1500];
 
         let (nread, src) = loop {
-            log::warn!("recv()");
             let res = self.socket.recv_from(&mut buf);
-            log::warn!("recv(): {:#?}", res);
+            log::debug!("recv(): {:#?}", res);
             match res {
                 Ok(res) => break res,
-                Err(e) if e.kind() == ErrorKind::WouldBlock /* = TimedOut */ => return Err(MessageError::InvalidTokenLength),
-                Err(e) if e.kind() == ErrorKind::TimedOut => return Err(MessageError::InvalidTokenLength),
+                Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
+                    return Err(MessageError::InvalidTokenLength)
+                }
                 Err(e) => panic!("{:#?}", e),
             }
         };
@@ -89,13 +105,13 @@ impl Connection {
         let packet = Packet::from_bytes(&buf[..nread])?;
 
         let receive_packet = CoapRequest::from_packet(packet, &src);
-        
-        Ok(CoapResponse { message: receive_packet.message} )
+
+        Ok(CoapResponse {
+            message: receive_packet.message,
+        })
     }
 
     pub fn set_timeout(&mut self, dur: Option<Duration>) {
         self.socket.set_read_timeout(dur).unwrap();
     }
-
-
 }

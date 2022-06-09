@@ -147,12 +147,17 @@ fn main() -> Result<(), EspError> {
 
 fn send_sensor_data(conn: &mut Connection, addr: &str, temperature: &[f32], photoresistor: &[i32], infrared: &[i32]) {
     let mut payload = vec![];
+
+    debug_assert_eq!(temperature.len(), photoresistor.len());
+    debug_assert_eq!(photoresistor.len(), infrared.len());
+
+    payload.extend_from_slice(&(temperature.len() as u32).to_ne_bytes());
     
     // TODO prevent fragementation
     for ((t,p),i) in temperature.iter().zip(photoresistor.iter()).zip(infrared.iter()) {
-        payload.extend_from_slice(&t.to_ne_bytes());
-        payload.extend_from_slice(&p.to_ne_bytes());
-        payload.extend_from_slice(&i.to_ne_bytes());
+        payload.extend_from_slice(&t.to_le_bytes());
+        payload.extend_from_slice(&p.to_le_bytes());
+        payload.extend_from_slice(&i.to_le_bytes());
     }
 
     conn.send(RequestType::Post, addr, "/sensor/data", payload);
