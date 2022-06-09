@@ -18,7 +18,6 @@ use esp_idf_sys::{self as _, sleep}; // If using the `binstart` feature of `esp-
 
 use networking::coap::Connection;
 use sensors::motor::StepperMotor;
-use sensors::temperature::TemperatureSensor;
 
 fn main() -> Result<(), EspError> {
     esp_idf_sys::link_patches();
@@ -30,7 +29,8 @@ fn main() -> Result<(), EspError> {
     esp_idf_svc::log::EspLogger::initialize_default();
     //esp_idf_svc::log::EspLogger.set_target_level("rust-logging", esp_idf_svc::log::Level::Debug);
 
-    let mut temp_sensor = TemperatureSensor::new(peripherals.i2c0, pins.gpio21, pins.gpio22)?;
+    let mut i2c_sensors =
+        sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, false)?;
 
     let mut stepper_motor1 = StepperMotor::new(
         pins.gpio16.into_output()?,
@@ -116,8 +116,8 @@ fn main() -> Result<(), EspError> {
 
             log::info!(
                 "Temperature: {} °C, Pressure: {} Pa",
-                temp_sensor.get_temperature(),
-                temp_sensor.get_pressure()
+                i2c_sensors.get_temperature(),
+                i2c_sensors.get_pressure()
             );
 
             std::thread::sleep(std::time::Duration::from_secs(2));

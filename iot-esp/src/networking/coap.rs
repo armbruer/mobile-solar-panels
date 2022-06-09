@@ -98,7 +98,7 @@ impl Connection {
                 Err(e) if e.kind() == ErrorKind::WouldBlock || e.kind() == ErrorKind::TimedOut => {
                     return Err(MessageError::InvalidTokenLength)
                 }
-                Err(e) => panic!("{:#?}", e),
+                Err(e) => todo!("{:#?}", e),
             }
         };
 
