@@ -45,7 +45,7 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> I2CDevices<I2C, SDA, S
 
         let power_sensor = if enable_ina219 {
             // todo!("Set address");
-            Some(ina219::INA219NonOwned::new(&mut i2c_master, 0))
+            Some(ina219::INA219NonOwned::new(0))
         } else {
             None
         };
