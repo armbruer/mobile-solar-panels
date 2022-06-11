@@ -2,12 +2,12 @@
 
 ## Wifi Configuration
 
-Add the following to the `devcontainer.json` file to setup Wifi:
+Insert your credentials into the `devcontainer.json` file to setup Wifi:
 
 ```
 "containerEnv": {
     "RUST_ESP32_WIFI_SSID": "<SSID>",
-    "RUST_ESP32_WIFI_PASS": "<PASS>",
+    "RUST_ESP32_WIFI_PASS": "<PASSWORD>",
 },
 ```
 
@@ -72,3 +72,9 @@ simulating in Wokwi is also added.
     select `Build & Flash`.
     - From UI: Press `Build & Flash` on the left side of the Status Bar.
 - Any alternative flashing method from host machine.
+
+## Contributions 3rd party projects
+
+Forks of Rust crates:
+- INA219: https://github.com/youduda/ina219
+- embedded-drivers: https://github.com/youduda/embedded-drivers
