@@ -37,6 +37,8 @@ fn main() -> Result<(), EspError> {
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
+        180.0, //TODO calibrate
+        0.72,  // 1.8   //TODO to be determined
     );
 
     let mut stepper_motor2 = StepperMotor::new(
@@ -44,6 +46,8 @@ fn main() -> Result<(), EspError> {
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
+        180.0, //TODO calibrate
+        0.72,  //1.8   //TODO to be determined
     );
 
     let config_photoresistor = adc_interpolator::Config {
@@ -70,7 +74,7 @@ fn main() -> Result<(), EspError> {
     let pin_ir_sensor = pins.gpio35.into_analog_atten_11db()?;
     let mut interpolator_photoresistor: AdcInterpolator<Gpio34<adc::Atten11dB<adc::ADC1>>, u16, 3> =
         AdcInterpolator::new(pin_photoresistor, config_photoresistor);
-    let mut interpolator_ir_sensor: AdcInterpolator<Gpio35<adc::Atten11dB<adc::ADC1>>, u16, 3> =
+    let mut interpolator_ir_sensor_1: AdcInterpolator<Gpio35<adc::Atten11dB<adc::ADC1>>, u16, 3> =
         AdcInterpolator::new(pin_ir_sensor, config_ir_sensor);
 
     let mut powered_adc = adc::PoweredAdc::new(
@@ -81,6 +85,15 @@ fn main() -> Result<(), EspError> {
     let netif_stack = Arc::new(EspNetifStack::new()?);
     let sys_loop_stack = Arc::new(EspSysLoopStack::new()?);
     let default_nvs = Arc::new(EspDefaultNvs::new()?);
+
+    // Main motor algorithm
+    let motor_control = false;
+    if motor_control {
+        init_motors(stepper_motor1, stepper_motor2, interpolator_ir_sensor, powered_adc);
+        search_vague(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
+        search_exact(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
+        follow_sun(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
+    }
 
     // Demo: Hardware measurements on serial port and motors turning
     let demo_hardware_measurements = false;
@@ -153,6 +166,145 @@ fn main() -> Result<(), EspError> {
     }
 
     Ok(())
+}
+
+fn init_motors(
+    stepper_motor1: StepperMotor,
+    stepper_motor2: StepperMotor,
+    interpolator_ir_sensor: AdcInterpolator,
+    powered_adc: adc::PoweredAdc,
+) {
+    let ir_sensor_data_close1 = 0.0; //TODO calibrate
+    let ir_sensor_data_close2 = 0.0; //TODO calibrate
+
+    // init stepper_motor1 angle
+    while interpolator_ir_sensor.read(&mut powered_adc).unwrap() < ir_sensor_data_close1 {
+        stepper_motor1.rotateLeft(sensors::motor::Speed::LowSpeed);
+    }
+    stepper_motor1.init(false);
+    stepper_motor1.stopMotor();
+
+    // init stepper_motor2 angle
+    while interpolator_ir_sensor.read(&mut powered_adc).unwrap() < ir_sensor_data_close2
+    //maybe use a second ir sensor
+    {
+        stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
+    }
+    stepper_motor2.init(false);
+    stepper_motor2.stopMotor();
+}
+
+fn search_vague(
+    stepper_motor1: StepperMotor,
+    stepper_motor2: StepperMotor,
+    interpolator_photoresistor: AdcInterpolator,
+    powered_adc: adc::PoweredAdc,
+) {
+    //search for the sun by moving the motors in an ⧖ shape
+    let angle1 = stepper_motor1.current_angle;
+    let angle2 = stepper_motor2.current_angle;
+    let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+    let best_position = vec![photoresistor, angle1, angle2];
+
+    //1. line of the ⧖ shape
+    while stepper_motor2.rotatableRight() {
+        angle2 = stepper_motor2.rotateRight(sensors::motor::Speed::LowSpeed);
+        photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+        if best_position[0] < photoresistor {
+            best_position = vec![photoresistor, angle1, angle2];
+        }
+    }
+    //2. line of the ⧖ shape
+    let half_max_angle = stepper_motor1.max_angle / 2;
+    while stepper_motor1.rotatableAngle(half_max_angle) {
+        angle1 = stepper_motor1.rotateAngle(sensors::motor::Speed::LowSpeed, half_max_angle);
+        photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+        if best_position[0] < photoresistor {
+            best_position = vec![photoresistor, angle1, angle2];
+        }
+    }
+    //3. line of the ⧖ shape
+    while stepper_motor2.rotatableLeft() {
+        angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
+        photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+        if best_position[0] < photoresistor {
+            best_position = vec![photoresistor, angle1, angle2];
+        }
+    }
+    //4. line of the ⧖ shape
+    while stepper_motor1.rotatableRight() {
+        angle1 = stepper_motor1.rotateRight(sensors::motor::Speed::LowSpeed);
+        photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+        if best_position[0] < photoresistor {
+            best_position = vec![photoresistor, angle1, angle2];
+        }
+    }
+    //move to best position
+    stepper_motor1.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[1]);
+    stepper_motor2.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[2]);
+}
+
+fn search_exact(
+    stepper_motor1: StepperMotor,
+    stepper_motor2: StepperMotor,
+    interpolator_photoresistor: AdcInterpolator,
+    powered_adc: adc::PoweredAdc,
+) {
+    //search for the sun within a grid around the current position
+    let gridsize = 7; //TODO calibrate
+    let angle1 = stepper_motor1.current_angle;
+    let angle2 = stepper_motor2.current_angle;
+    let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+    let init_best_position = vec![photoresistor, angle1, angle2];
+    let new_best_position = init_best_position;
+
+    //repeat until best position is reached
+    loop
+    {
+        //move to the leftest position of both motors
+        let half_gridsize = (gridsize+1) / 2;
+        for _ in 1..half_gridsize {
+            angle1 = stepper_motor1.rotateLeft(sensors::motor::Speed::HighSpeed);
+            angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::HighSpeed);
+        }
+
+        //go through each position in the grid in wavy lines and check if one is better than before
+        for m1 in 1..gridsize {
+            for m2 in 1..gridsize {
+                if m2 % 2 == 0
+                {
+                    angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
+                }
+                else
+                {
+                    angle2 = stepper_motor2.rotateRight(sensors::motor::Speed::LowSpeed);
+                }
+                photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
+                if new_best_position[0] < photoresistor {
+                    new_best_position = vec![photoresistor, angle1, angle2];
+                }
+            }
+            angle1 = stepper_motor1.rotateRight(sensors::motor::Speed::LowSpeed);
+        }
+
+        //move to best position
+        stepper_motor1.rotateAngleFull(sensors::motor::Speed::HighSpeed, new_best_position[1]);
+        stepper_motor2.rotateAngleFull(sensors::motor::Speed::HighSpeed, new_best_position[2]);
+
+        //stop if best position is reached
+        if new_best_position == init_best_position
+        {
+            break;
+        }
+    }
+}
+
+fn follow_sun(stepper_motor1: StepperMotor,
+    stepper_motor2: StepperMotor,
+    interpolator_photoresistor: AdcInterpolator,
+    powered_adc: adc::PoweredAdc,
+) {
+
 }
 
 fn send_sensor_data(
