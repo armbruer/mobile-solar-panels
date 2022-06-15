@@ -3,6 +3,7 @@ mod sensors;
 
 use std::sync::Arc;
 use std::time::Duration;
+use std::cmp;
 
 use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
@@ -32,7 +33,7 @@ fn main() -> Result<(), EspError> {
     let mut i2c_sensors =
         sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, false)?;
 
-    let mut stepper_motor1 = StepperMotor::new(
+    let mut stepper_motor_ver = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
@@ -41,7 +42,7 @@ fn main() -> Result<(), EspError> {
         0.72,  // 1.8   //TODO to be determined
     );
 
-    let mut stepper_motor2 = StepperMotor::new(
+    let mut stepper_motor_hor = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
@@ -89,30 +90,31 @@ fn main() -> Result<(), EspError> {
     // Main motor algorithm
     let motor_control = false;
     if motor_control {
-        init_motors(stepper_motor1, stepper_motor2, interpolator_ir_sensor, powered_adc);
-        search_vague(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
-        search_exact(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
-        follow_sun(stepper_motor1, stepper_motor2, interpolator_photoresistor, powered_adc);
+        init_motors(stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, powered_adc);
+        search_vague(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc);
+        let gridsize = 7 //TODO calibrate
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, gridsize, gridsize);
+        follow_sun(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, seach_result.2, gridsize);
     }
 
     // Demo: Hardware measurements on serial port and motors turning
     let demo_hardware_measurements = false;
     if demo_hardware_measurements {
-        let thread_stepper_motor1 = std::thread::spawn(move || {
+        let thread_stepper_motor_ver = std::thread::spawn(move || {
             for _ in 0..20 {
                 for _ in 0..200 {
-                    stepper_motor1.rotateRight(sensors::motor::Speed::HighSpeed);
+                    stepper_motor_ver.rotateRight(sensors::motor::Speed::HighSpeed);
                 }
-                stepper_motor1.stopMotor();
+                stepper_motor_ver.stopMotor();
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         });
-        let thread_stepper_motor2 = std::thread::spawn(move || {
+        let thread_stepper_motor_hor = std::thread::spawn(move || {
             for _ in 0..20 {
                 for _ in 0..200 {
-                    stepper_motor2.rotateLeft(sensors::motor::Speed::HighSpeed);
+                    stepper_motor_hor.rotateLeft(sensors::motor::Speed::HighSpeed);
                 }
-                stepper_motor2.stopMotor();
+                stepper_motor_hor.stopMotor();
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         });
@@ -136,8 +138,8 @@ fn main() -> Result<(), EspError> {
             std::thread::sleep(std::time::Duration::from_secs(2));
         });
 
-        thread_stepper_motor1.join().unwrap();
-        thread_stepper_motor2.join().unwrap();
+        thread_stepper_motor_ver.join().unwrap();
+        thread_stepper_motor_hor.join().unwrap();
         thread_measure.join().unwrap();
     }
 
@@ -169,142 +171,221 @@ fn main() -> Result<(), EspError> {
 }
 
 fn init_motors(
-    stepper_motor1: StepperMotor,
-    stepper_motor2: StepperMotor,
+    stepper_motor_ver: StepperMotor,
+    stepper_motor_hor: StepperMotor,
     interpolator_ir_sensor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
 ) {
     let ir_sensor_data_close1 = 0.0; //TODO calibrate
     let ir_sensor_data_close2 = 0.0; //TODO calibrate
 
-    // init stepper_motor1 angle
+    // init stepper_motor_ver angle
     while interpolator_ir_sensor.read(&mut powered_adc).unwrap() < ir_sensor_data_close1 {
-        stepper_motor1.rotateLeft(sensors::motor::Speed::LowSpeed);
+        stepper_motor_ver.rotateLeft(sensors::motor::Speed::LowSpeed);
     }
-    stepper_motor1.init(false);
-    stepper_motor1.stopMotor();
+    stepper_motor_ver.initAngle(false);
+    stepper_motor_ver.stopMotor();
 
-    // init stepper_motor2 angle
+    // init stepper_motor_hor angle
     while interpolator_ir_sensor.read(&mut powered_adc).unwrap() < ir_sensor_data_close2
     //maybe use a second ir sensor
     {
-        stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
+        stepper_motor_hor.rotateLeft(sensors::motor::Speed::LowSpeed);
     }
-    stepper_motor2.init(false);
-    stepper_motor2.stopMotor();
+    stepper_motor_hor.initAngle(false);
+    stepper_motor_hor.stopMotor();
 }
 
 fn search_vague(
-    stepper_motor1: StepperMotor,
-    stepper_motor2: StepperMotor,
+    stepper_motor_ver: StepperMotor,
+    stepper_motor_hor: StepperMotor,
     interpolator_photoresistor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
 ) {
     //search for the sun by moving the motors in an ⧖ shape
-    let angle1 = stepper_motor1.current_angle;
-    let angle2 = stepper_motor2.current_angle;
+    let angle1 = stepper_motor_ver.current_angle;
+    let angle2 = stepper_motor_hor.current_angle;
     let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
     let best_position = vec![photoresistor, angle1, angle2];
 
     //1. line of the ⧖ shape
-    while stepper_motor2.rotatableRight() {
-        angle2 = stepper_motor2.rotateRight(sensors::motor::Speed::LowSpeed);
+    while stepper_motor_hor.rotatableRight() {
+        angle2 = stepper_motor_hor.rotateRight(sensors::motor::Speed::LowSpeed);
         photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
         if best_position[0] < photoresistor {
             best_position = vec![photoresistor, angle1, angle2];
         }
     }
     //2. line of the ⧖ shape
-    let half_max_angle = stepper_motor1.max_angle / 2;
-    while stepper_motor1.rotatableAngle(half_max_angle) {
-        angle1 = stepper_motor1.rotateAngle(sensors::motor::Speed::LowSpeed, half_max_angle);
+    let half_max_angle = stepper_motor_ver.max_angle / 2;
+    while stepper_motor_ver.rotatableAngle(half_max_angle) {
+        angle1 = stepper_motor_ver.rotateAngle(sensors::motor::Speed::LowSpeed, half_max_angle);
         photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
         if best_position[0] < photoresistor {
             best_position = vec![photoresistor, angle1, angle2];
         }
     }
     //3. line of the ⧖ shape
-    while stepper_motor2.rotatableLeft() {
-        angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
+    while stepper_motor_hor.rotatableLeft() {
+        angle2 = stepper_motor_hor.rotateLeft(sensors::motor::Speed::LowSpeed);
         photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
         if best_position[0] < photoresistor {
             best_position = vec![photoresistor, angle1, angle2];
         }
     }
     //4. line of the ⧖ shape
-    while stepper_motor1.rotatableRight() {
-        angle1 = stepper_motor1.rotateRight(sensors::motor::Speed::LowSpeed);
+    while stepper_motor_ver.rotatableRight() {
+        angle1 = stepper_motor_ver.rotateRight(sensors::motor::Speed::LowSpeed);
         photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
         if best_position[0] < photoresistor {
             best_position = vec![photoresistor, angle1, angle2];
         }
     }
     //move to best position
-    stepper_motor1.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[1]);
-    stepper_motor2.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[2]);
+    stepper_motor_ver.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[1]);
+    stepper_motor_hor.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position[2]);
 }
 
 fn search_exact(
-    stepper_motor1: StepperMotor,
-    stepper_motor2: StepperMotor,
+    stepper_motor_ver: StepperMotor,
+    stepper_motor_hor: StepperMotor,
     interpolator_photoresistor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
-) {
-    //search for the sun within a grid around the current position
-    let gridsize = 7; //TODO calibrate
-    let angle1 = stepper_motor1.current_angle;
-    let angle2 = stepper_motor2.current_angle;
-    let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
-    let init_best_position = vec![photoresistor, angle1, angle2];
-    let new_best_position = init_best_position;
+    left_corner: bool,
+    ver_gridsize: i32, //at least 0, only odd values
+    hor_gridsize: i32, //at least 0, only odd values
+) -> (i32, f32, f32, bool, bool) {
+    // search for the sun within a grid around the current position
+    let step_size = 1 // at least 1 // TODO calibrate
+    let border = 1 // TODO calibrate
+    let angle1 = stepper_motor_ver.current_angle;
+    let angle2 = stepper_motor_hor.current_angle;
+    let best_position = (0, angle1, angle2, true, true);
+    let was_ver_border = false;
+    let was_ver_border = false;
 
     //repeat until best position is reached
-    loop
-    {
-        //move to the leftest position of both motors
-        let half_gridsize = (gridsize+1) / 2;
-        for _ in 1..half_gridsize {
-            angle1 = stepper_motor1.rotateLeft(sensors::motor::Speed::HighSpeed);
-            angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::HighSpeed);
+    loop {
+        //move to one corner of the grid depending on the starting position
+        let ver_offset = ver_gridsize + 1) / 2;
+        for _ in 1..ver_offset {
+            angle1 = stepper_motor_ver.rotateLeft(sensors::motor::Speed::HighSpeed);
+        }
+        let hor_offset = hor_gridsize + 1) / 2;
+        for _ in 1..hor_offset {
+            angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::HighSpeed, left_corner);
         }
 
-        //go through each position in the grid in wavy lines and check if one is better than before
-        for m1 in 1..gridsize {
-            for m2 in 1..gridsize {
-                if m2 % 2 == 0
-                {
-                    angle2 = stepper_motor2.rotateLeft(sensors::motor::Speed::LowSpeed);
-                }
-                else
-                {
-                    angle2 = stepper_motor2.rotateRight(sensors::motor::Speed::LowSpeed);
+        //go through each position in the grid in wavy lines and check if one is better
+        for m2 in 1..=hor_gridsize {
+            for m1 in 1..=ver_gridsize {
+                let m1_uniform = ver_gridsize + 1 - m1;
+                //no need to move in the first iteration as angle2 has been updated
+                if m1 != 1 {
+                    // depending on if we are on the left or on the right move in the opposite direction
+                    let rotate_left = m1_uniform % 2 == 0;
+                    for _ in 1..=step_size {
+                        angle1 = stepper_motor_ver.rotateLeftRight(sensors::motor::Speed::LowSpeed, rotate_left);
+                    }
                 }
                 photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
-                if new_best_position[0] < photoresistor {
-                    new_best_position = vec![photoresistor, angle1, angle2];
+                if best_position.0 < photoresistor {
+                    let hor_border = m1_uniform <= border || m1_uniform > hor_gridsize - border;
+                    let ver_border = m2 <= border || m2 > ver_gridsize - border;
+                    best_position = (photoresistor, angle1, angle2, ver_border, hor_border);
                 }
             }
-            angle1 = stepper_motor1.rotateRight(sensors::motor::Speed::LowSpeed);
+            //if we cannot move in one direction, rotate both motors by 180°
+            if (left_corner && !motor_hor.rotatableRight()) || (!left_corner && !motor_hor.rotatableLeft()){
+                motor_ver.rotateAngleFull(sensors::motor::Speed::HighSpeed, (motor_ver.current_angle - 180.0).abs());
+                motor_hor.rotateAngleFull(sensors::motor::Speed::HighSpeed, (motor_ver.current_angle - 180.0).abs());
+            }
+            angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::LowSpeed, !left_corner);
         }
 
         //move to best position
-        stepper_motor1.rotateAngleFull(sensors::motor::Speed::HighSpeed, new_best_position[1]);
-        stepper_motor2.rotateAngleFull(sensors::motor::Speed::HighSpeed, new_best_position[2]);
+        stepper_motor_ver.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position.1);
+        stepper_motor_hor.rotateAngleFull(sensors::motor::Speed::HighSpeed, best_position.2);
 
-        //stop if best position is reached
-        if new_best_position == init_best_position
-        {
+        //stop if best position is not a border or we only want to execute once
+        if !best_position.3 && !best_position.4  {
             break;
+        } else {
+            was_ver_border = was_ver_border || best_position.3;
+            was_hor_border = was_hor_border || best_position.4;
         }
     }
+    return (best_position[:3], was_ver_border, was_hor_border);
 }
 
-fn follow_sun(stepper_motor1: StepperMotor,
-    stepper_motor2: StepperMotor,
+fn follow_sun(stepper_motor_ver: StepperMotor,
+    stepper_motor_hor: StepperMotor,
     interpolator_photoresistor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
+    hor_angle: f32,
+    gridsize: i32,
 ) {
+    let ver_gridsize = gridsize;
+    let hor_gridsize = gridsize;
+    let sleep_modifier = 0.95; //TODO calibrate
+    let grid_modifier = 2; //TODO calibrate
+    let min_gridsize = 3; //TODO calibrate
+    let angle_threshold = 3; //TODO calibrate
+    let sleep = 60; //TODO calibrate
+    let no_angle_move_treshold = 5; //TODO calibrate
+    let light_treshold = 5; //TODO calibrate
 
+    //calculate the direction the sun moves horizontally
+    let ver_angle = 0;
+    let hor_angle_new = hor_angle;
+    while hor_angle_new - hor_angle == 0 {
+        std::thread::sleep(std::time::Duration::from_secs(sleep));
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, ver_gridsize, hor_gridsize);
+        ver_angle = seach_result.1;
+        hor_angle_new = search_result.2;
+    }
+    let hor_increase_angle = hor_angle_new - hor_angle > 0;
+    hor_angle = hor_angle_new;
+
+    //repeat until sunset
+    let no_angle_move = 0;
+    loop {
+        std::thread::sleep(std::time::Duration::from_secs(sleep));
+        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, hor_increase_angle, ver_gridsize, hor_gridsize);
+
+        //sleep less long if sun was not in the first grid
+        sleep = if search_result.3 || search_result.4 {
+            sleep * sleep_modifier;
+        } else {
+            sleep / sleep_modifier;
+        }
+
+        // resize the grid vertically depending on the vertical angle change
+        let ver_angle_move = (search_result.1 - ver_angle).abs() >= angle_threshold;
+        if !ver_angle_move  && ver_gridsize != min_gridsize {
+            ver_gridsize = ver_gridsize - grid_modifier;
+        } else if ver_angle_move && ver_gridsize != gridsize {
+            ver_gridsize = ver_gridsize + grid_modifier;
+        }
+        ver_angle = seach_result.1;
+
+        // resize the grid horizontally depending on the horizontal angle change
+        let hor_angle_move = (search_result.2 - hor_angle).abs() >= angle_threshold;
+        if !hor_angle_move  && hor_gridsize != min_gridsize {
+            hor_gridsize = hor_gridsize - grid_modifier;
+        } else if hor_angle_move && hor_gridsize != gridsize {
+            hor_gridsize = hor_gridsize + grid_modifier;
+        }
+        hor_angle = seach_result.2;
+
+        //sunset is probably reached when angles dont change and light is low
+        if(!ver_angle_move && !hor_angle_move){
+            no_angle_move = no_angle_move + 1;
+            if(no_angle_move >= no_angle_move_treshold && search_result.0 < light_treshold){
+                break;
+            }
+        }
+    }
 }
 
 fn send_sensor_data(

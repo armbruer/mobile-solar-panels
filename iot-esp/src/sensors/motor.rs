@@ -37,8 +37,8 @@ impl<
         pin2: OutputPin2,
         pin3: OutputPin3,
         pin4: OutputPin4,
-        max_angle: f32,
-        step_size: f32,
+        max_angle: f32, // larger than 0
+        step_size: f32, // larger than 0
     ) -> StepperMotor<OutputPin1, OutputPin2, OutputPin3, OutputPin4> {
         StepperMotor {
             pin1,
@@ -98,6 +98,15 @@ impl<
             return self.rotateRight(motorSpeed);
         } else {
             return self.rotateLeft(motorSpeed);
+        }
+    }
+
+    pub fn rotateLeftRight(&mut self, motorSpeed: Speed, left: bool) -> f32 {
+        if left {
+            return self.rotateLeft(motorSpeed);
+        }
+        else {
+            return self.rotateRight(motorSpeed);
         }
     }
 
