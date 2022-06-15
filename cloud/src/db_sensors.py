@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS sensor (
     time TIMESTAMPTZ NOT NULL,
     temperature REAL NULL,
     photoresistor INTEGER NULL,
-    infrared INTEGER NULL,
+    infrared INTEGER NULL
 );
 """
 
