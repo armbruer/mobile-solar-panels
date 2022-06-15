@@ -65,7 +65,7 @@ pub fn wifi(
     info!("Wifi configuration set, about to get status");
 
     wifi.wait_status_with_timeout(Duration::from_secs(20), |status| !status.is_transitional())
-        .map_err(|e| panic!("Unexpected Wifi status: {:?}", e))?; // TODO
+        .map_err(|e| todo!("Unexpected Wifi status: {:?}", e))?; // TODO
 
     let status = wifi.get_status();
 
@@ -79,7 +79,7 @@ pub fn wifi(
         ping(&ip_settings)?;
     } else {
         // TODO
-        panic!("Unexpected Wifi status: {:?}", status);
+        todo!("Unexpected Wifi status: {:?}", status);
     }
 
     Ok(wifi)
@@ -91,7 +91,7 @@ pub fn ping(ip_settings: &ipv4::ClientSettings) -> Result<(), EspError> {
     let ping_summary =
         ping::EspPing::default().ping(ip_settings.subnet.gateway, &Default::default())?;
     if ping_summary.transmitted != ping_summary.received {
-        panic!(
+        todo!(
             // TODO
             "Pinging gateway {} resulted in timeouts",
             ip_settings.subnet.gateway

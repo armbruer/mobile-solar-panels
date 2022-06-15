@@ -19,11 +19,13 @@ pio = ["esp-idf-sys/pio"]
 esp-idf-sys = { version = "0.31.5", features = ["binstart"] }
 esp-idf-svc = "0.41.3"
 esp-idf-hal = "0.37.4"
-embedded-drivers = "0.0.1"
 embedded-hal = "0.2.7"
 log = "0.4.17"
 adc-interpolator = "0.2.0"
 embedded-svc = "0.21.2"
+coap-lite = "0.9.0"
+embedded-drivers = { git = "https://github.com/youduda/embedded-drivers" }
+ina219 = { git = "https://github.com/youduda/ina219" }
 
 [build-dependencies]
 embuild = "0.29.1"
