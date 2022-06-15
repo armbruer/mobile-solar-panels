@@ -4,7 +4,7 @@ services:
   solarpanels_db:
     image: postgres
     networks:
-      solarpanels:
+      cloud-solarpanels:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -34,7 +34,7 @@ services:
   broker:
     image: eclipse-mosquitto
     networks:
-      solarpanels:
+      cloud-solarpanels:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
@@ -46,4 +46,4 @@ services:
           memory: 600M
 
 networks:
-  solarpanels:
+  cloud-solarpanels:
