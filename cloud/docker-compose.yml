@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  solarpanels_db:
+    image: postgres
+    networks:
+      solarpanels:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: solarpanels
+    volumes:
+      - "${PERSISTENT_DB_PATH:-.}/solarpanels_db:/var/lib/postgresql/data"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 600M
+  mqtt_adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      solarpanels:
+    restart: unless-stopped
+    depends_on:
+      - "solarpanels_db"
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 600M
+  broker:
+    image: eclipse-mosquitto
+    networks:
+      solarpanels:
+    volumes:
+      - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
+      - "${PERSISTENT_DB_PATH:-.}/mosquitto.conf:/mosquitto.conf"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 600M
+
+networks:
+  solarpanels:

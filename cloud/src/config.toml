@@ -1,0 +1,10 @@
+[broker]
+host = "broker"
+port = "1883"
+
+[db]
+user = "postgres"
+password = "postgres"
+host = "solarpanels_db"
+port = 5432
+database = "solarpanels"
