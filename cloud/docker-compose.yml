@@ -37,7 +37,7 @@ services:
       solarpanels:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
-      - "${PERSISTENT_DB_PATH:-.}/mosquitto.conf:/mosquitto.conf"
+      - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
     restart: unless-stopped
     deploy:
       resources:
