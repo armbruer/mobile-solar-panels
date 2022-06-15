@@ -52,17 +52,6 @@ async def mqtt_db_manager(client: Client, pool: asyncpg.pool.Pool, topic: str,
         print(ex)
 
 
-async def run(client: Client, pool: asyncpg.pool):
-    _, pending = await asyncio.wait(
-        [mqtt_db_manager(client, pool, "sensors", db_sensors.setup, db_sensors.parse_insert)],
-        return_when=asyncio.FIRST_COMPLETED
-    )
-    for task in pending:
-        logging.warning("Task Cancelled")
-        task.cancel()
-    logging.info("Shutting down")
-
-
 async def main(conf: Config):
     logging.info("Connecting to database")
     try:
@@ -83,7 +72,7 @@ async def main(conf: Config):
     try:
         async with Client(conf.broker.host, conf.broker.port) as client:
             logging.info("Connected to MQTT broker")
-            await run(client, pool)
+            await mqtt_db_manager(client, pool, "sensors", db_sensors.setup, db_sensors.parse_insert)
     except MqttError as ex:
         logging.critical("MQTT Error")
         print(ex)
