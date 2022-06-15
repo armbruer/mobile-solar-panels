@@ -148,7 +148,7 @@ async def main(conf: Config):
     await aiocoap.Context.create_server_context(root)
 
     # Run forever
-    # await asyncio.get_running_loop().create_future() TODO, still required?
+    await asyncio.get_running_loop().create_future()
 
     try:
         async with Client(conf.broker.host, conf.broker.port) as client:

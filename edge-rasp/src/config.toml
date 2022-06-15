@@ -1,0 +1,3 @@
+[broker]
+host = "broker"
+port = 1883
