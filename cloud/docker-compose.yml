@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile
     networks:
-      solarpanels:
+      cloud-solarpanels:
     restart: unless-stopped
     depends_on:
       - "solarpanels_db"
@@ -31,10 +31,13 @@ services:
         limits:
           cpus: '0.50'
           memory: 600M
-  broker:
+  cbroker:
     image: eclipse-mosquitto
     networks:
       cloud-solarpanels:
+      ingress:
+        aliases:
+          - solarpanels
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
@@ -47,3 +50,5 @@ services:
 
 networks:
   cloud-solarpanels:
+  ingress:
+    external: false

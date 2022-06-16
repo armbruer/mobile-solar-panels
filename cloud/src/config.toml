@@ -1,5 +1,5 @@
 [broker]
-host = "broker"
+host = "cbroker"
 port = 1883
 
 [db]
