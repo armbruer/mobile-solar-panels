@@ -32,7 +32,7 @@ class Config(BaseModel):
 
 async def mqtt_db_manager(client: Client, pool: asyncpg.pool.Pool, topic: str,
                           setup_table: Callable[[asyncpg.connection.Connection], Awaitable[None]],
-                          parse_insert: Callable[[str, asyncpg.connection.Connection], Awaitable[None]]):
+                          parse_insert: Callable[[bytes, asyncpg.connection.Connection], Awaitable[None]]):
     async with pool.acquire() as conn:
         # Initialise DB in case it is a fresh instance, these get ignored if already created
         async with conn.transaction():
