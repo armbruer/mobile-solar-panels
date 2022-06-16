@@ -36,8 +36,6 @@ services:
     networks:
       cloud-solarpanels:
       ingress:
-        aliases:
-          - solarpanels
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
@@ -51,4 +49,4 @@ services:
 networks:
   cloud-solarpanels:
   ingress:
-    external: false
+    external: true

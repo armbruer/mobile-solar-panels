@@ -17,6 +17,7 @@ services:
     image: eclipse-mosquitto
     networks:
       edge-solarpanels:
+      ingress:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
@@ -29,3 +30,5 @@ services:
 
 networks:
   edge-solarpanels:
+  ingress:
+    external: true
