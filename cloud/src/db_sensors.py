@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS sensor (
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, temperature, photoresistor, infrared) VALUES (NOW(), $1 $2, $3)
+INSERT INTO sensor (time, temperature, photoresistor, infrared) VALUES (NOW(), $1, $2, $3)
 """
 
 
@@ -31,7 +31,7 @@ class DataPoint():
     @staticmethod
     def from_str(datapoint: str):
         t, p, i = datapoint.split(" ")
-        return DataPoint(t, p, i)
+        return DataPoint(float(t), int(p), int(i))
 
 
 async def setup(conn: asyncpg.connection):
@@ -39,9 +39,9 @@ async def setup(conn: asyncpg.connection):
     await conn.execute(QUERY_CREATE_SENSORS)
 
 
-async def parse_insert(payload: str, conn: asyncpg.connection):
+async def parse_insert(payload: bytes, conn: asyncpg.connection):
     # TODO data validation on both sides of mqtt
-    datapoints = map(DataPoint.from_str, payload.split(";"))
+    datapoints = map(DataPoint.from_str, payload.decode().split(";"))
 
     for dp in datapoints:
         try:
