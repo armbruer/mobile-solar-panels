@@ -23,6 +23,8 @@ class ConfigDB(BaseModel):
 class ConfigBroker(BaseModel):
     host: str
     port: int
+    username: str
+    password: str
 
 
 class Config(BaseModel):
@@ -70,7 +72,7 @@ async def main(conf: Config):
     logging.info("Connecting to MQTT broker")
 
     try:
-        async with Client(conf.broker.host, conf.broker.port) as client:
+        async with Client(conf.broker.host, conf.broker.port, username=conf.broker.username, password=conf.broker.password) as client:
             logging.info("Connected to MQTT broker")
             await mqtt_db_manager(client, pool, "sensors", db_sensors.setup, db_sensors.parse_insert)
     except MqttError as ex:

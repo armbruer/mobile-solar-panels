@@ -2,6 +2,8 @@ import datetime
 import logging
 
 import asyncio
+import time
+
 import toml
 from typing import List
 
@@ -13,13 +15,13 @@ import struct
 from asyncio_mqtt import Client, MqttError
 from pydantic import BaseModel, ValidationError
 
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("coap-server").setLevel(logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 
 class ConfigBroker(BaseModel):
     host: str
     port: int
+    client_id: str
 
 
 class Config(BaseModel):
@@ -121,6 +123,7 @@ class SensorData(resource.Resource):
 
 
 async def worker(client: Client, received_data_points: asyncio.Queue):
+    logging.warning("Creating mock values")
     while True:
         datapoints: List[DataPoint] = await received_data_points.get()
         message = ';'.join(map(str, datapoints))
@@ -128,15 +131,21 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
         try:
             await client.publish("sensors", payload=message.encode())
         except MqttError as ex:
-            logging.critical("MQTT Error")
-            print(ex)
+            logging.error(ex)
+
+
+async def generate_data(received_data_points: asyncio.Queue):
+    while True:
+        dp = DataPoint(8651.1876, 588, 9911)
+        await received_data_points.put([dp])
+        logging.info("put some data")
+        await asyncio.sleep(5)
 
 
 async def main(conf: Config):
     received_data_points = asyncio.Queue()
 
     logging.info("Connecting to MQTT broker")
-
     # Resource tree creation
     root = resource.Site()
 
@@ -147,13 +156,10 @@ async def main(conf: Config):
 
     await aiocoap.Context.create_server_context(root)
 
-    # Run forever
-    await asyncio.get_running_loop().create_future()
-
     try:
-        async with Client(conf.broker.host, conf.broker.port) as client:
+        async with Client(conf.broker.host, conf.broker.port, client_id=conf.broker.client_id) as client:
             logging.info("Connected to MQTT broker")
-            await asyncio.gather(worker(client, received_data_points), asyncio.get_running_loop().create_future())
+            await asyncio.gather(generate_data(received_data_points), worker(client, received_data_points), asyncio.get_running_loop().create_future())
     except MqttError as ex:
         logging.critical("MQTT Error")
         print(ex)

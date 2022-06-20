@@ -45,6 +45,24 @@ services:
         limits:
           cpus: '0.50'
           memory: 600M
+  pgadmin:
+    image: dpage/pgadmin4
+    networks:
+      cloud-solarpanels:
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8088:5050
+    volumes:
+      - "${PERSISTENT_DB_PATH:-.}/pgadmin:/var/lib/pgadmin"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=user@domain.com
+      - PGADMIN_DEFAULT_PASSWORD=FSD9iw8S89FwlPm
+      - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True
+      - PGADMIN_CONFIG_LOGIN_BANNER="Authorised users only!"
+      - PGADMIN_CONFIG_CONSOLE_LOG_LEVEL=10
+      - PGADMIN_LISTEN_PORT=5050
+    logging:
+      driver: none
 
 networks:
   cloud-solarpanels:

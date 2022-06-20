@@ -13,6 +13,8 @@ services:
         limits:
           cpus: '0.50'
           memory: 600M
+    depends_on:
+      - broker
   broker:
     image: eclipse-mosquitto
     networks:
