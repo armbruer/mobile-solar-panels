@@ -92,9 +92,9 @@ fn main() -> Result<(), EspError> {
     if motor_control {
         init_motors(stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, powered_adc);
         search_vague(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc);
-        let gridsize = 7 //TODO calibrate
-        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, gridsize, gridsize);
-        follow_sun(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, seach_result.2, gridsize);
+        let gridsize = 7; //TODO calibrate
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, gridsize, gridsize, true, true);
+        follow_sun(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, search_result.1, seach_result.2, gridsize);
     }
 
     // Demo: Hardware measurements on serial port and motors turning
@@ -251,13 +251,16 @@ fn search_exact(
     stepper_motor_hor: StepperMotor,
     interpolator_photoresistor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
-    left_corner: bool,
+    ver_left_corner: bool,
+    hor_left_corner: bool,
     ver_gridsize: i32, //at least 0, only odd values
     hor_gridsize: i32, //at least 0, only odd values
+    ver_init: bool,
+    hor_init: bool,
 ) -> (i32, f32, f32, bool, bool) {
     // search for the sun within a grid around the current position
-    let step_size = 1 // at least 1 // TODO calibrate
-    let border = 1 // TODO calibrate
+    let step_size = 1; // at least 1 // TODO calibrate
+    let border = 1; // TODO calibrate
     let angle1 = stepper_motor_ver.current_angle;
     let angle2 = stepper_motor_hor.current_angle;
     let best_position = (0, angle1, angle2, true, true);
@@ -266,24 +269,28 @@ fn search_exact(
 
     //repeat until best position is reached
     loop {
-        //move to one corner of the grid depending on the starting position
-        let ver_offset = ver_gridsize + 1) / 2;
-        for _ in 1..ver_offset {
-            angle1 = stepper_motor_ver.rotateLeft(sensors::motor::Speed::HighSpeed);
+        //move to / define one corner of the grid depending on the starting position
+        if ver_init {
+            let ver_offset = (ver_gridsize + 1) / 2;
+            for _ in 1..ver_offset {
+                angle1 = stepper_motor_ver.rotateLeftRight(sensors::motor::Speed::HighSpeed, ver_left_corner);
+            }
         }
-        let hor_offset = hor_gridsize + 1) / 2;
-        for _ in 1..hor_offset {
-            angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::HighSpeed, left_corner);
+        if hor_init {
+            let hor_offset = (hor_gridsize + 1) / 2;
+            for _ in 1..hor_offset {
+                angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::HighSpeed, hor_left_corner);
+            }
         }
 
         //go through each position in the grid in wavy lines and check if one is better
         for m2 in 1..=hor_gridsize {
             for m1 in 1..=ver_gridsize {
-                let m1_uniform = ver_gridsize + 1 - m1;
                 //no need to move in the first iteration as angle2 has been updated
                 if m1 != 1 {
                     // depending on if we are on the left or on the right move in the opposite direction
-                    let rotate_left = m1_uniform % 2 == 0;
+                    let m2_odd = m2 % 2 == 0;
+                    let rotate_left = (ver_left_corner && !m2_odd) || (!ver_left_corner && m2_odd);
                     for _ in 1..=step_size {
                         angle1 = stepper_motor_ver.rotateLeftRight(sensors::motor::Speed::LowSpeed, rotate_left);
                     }
@@ -300,7 +307,7 @@ fn search_exact(
                 motor_ver.rotateAngleFull(sensors::motor::Speed::HighSpeed, (motor_ver.current_angle - 180.0).abs());
                 motor_hor.rotateAngleFull(sensors::motor::Speed::HighSpeed, (motor_ver.current_angle - 180.0).abs());
             }
-            angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::LowSpeed, !left_corner);
+            angle2 = stepper_motor_hor.rotateLeftRight(sensors::motor::Speed::LowSpeed, !hor_left_corner);
         }
 
         //move to best position
@@ -315,14 +322,15 @@ fn search_exact(
             was_hor_border = was_hor_border || best_position.4;
         }
     }
-    return (best_position[:3], was_ver_border, was_hor_border);
+    return (best_position.0, best_position.1, best_position.2, was_ver_border, was_hor_border);
 }
 
 fn follow_sun(stepper_motor_ver: StepperMotor,
     stepper_motor_hor: StepperMotor,
     interpolator_photoresistor: AdcInterpolator,
     powered_adc: adc::PoweredAdc,
-    hor_angle: f32,
+    ver_angle_init: f32,
+    hor_angle_init: f32,
     gridsize: i32,
 ) {
     let ver_gridsize = gridsize;
@@ -330,47 +338,52 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
     let sleep_modifier = 0.95; //TODO calibrate
     let grid_modifier = 2; //TODO calibrate
     let min_gridsize = 3; //TODO calibrate
-    let angle_threshold = 3; //TODO calibrate
+    let grid_angle_threshold = 3; //TODO calibrate
     let sleep = 60; //TODO calibrate
     let no_angle_move_treshold = 5; //TODO calibrate
     let light_treshold = 5; //TODO calibrate
+    let zenith_reached_treshold = 0; //TODO calibrate
 
-    //calculate the direction the sun moves horizontally
-    let ver_angle = 0;
-    let hor_angle_new = hor_angle;
-    while hor_angle_new - hor_angle == 0 {
+    //calculate the direction the sun moves horizontally and vertically
+    let ver_angle = ver_angle_init;
+    let hor_angle = hor_angle_init;
+    while hor_angle - hor_angle_init == 0 {
         std::thread::sleep(std::time::Duration::from_secs(sleep));
-        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, ver_gridsize, hor_gridsize);
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, ver_gridsize, hor_gridsize, true, true);
         ver_angle = seach_result.1;
-        hor_angle_new = search_result.2;
+        hor_angle = search_result.2;
     }
-    let hor_increase_angle = hor_angle_new - hor_angle > 0;
-    hor_angle = hor_angle_new;
+    let ver_increase_angle = ver_angle - ver_angle_init > 0;
+    let hor_increase_angle = hor_angle - hor_angle_init > 0;
+
+    //calculate if the vertical angle does not change and the zenith may have been reached
+    let zenith_reached = (ver_angle - ver_angle_init).abs <= zenith_reached_treshold;
 
     //repeat until sunset
-    let no_angle_move = 0;
     loop {
         std::thread::sleep(std::time::Duration::from_secs(sleep));
-        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, hor_increase_angle, ver_gridsize, hor_gridsize);
+        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, ver_increase_angle, hor_increase_angle, ver_gridsize, hor_gridsize, !zenith_reached, false);
 
         //sleep less long if sun was not in the first grid
         sleep = if search_result.3 || search_result.4 {
             sleep * sleep_modifier;
         } else {
             sleep / sleep_modifier;
-        }
+        };
 
-        // resize the grid vertically depending on the vertical angle change
-        let ver_angle_move = (search_result.1 - ver_angle).abs() >= angle_threshold;
+        // resize the grid vertically depending on the vertical angle change & update vertical direction & zenith boolean
+        let ver_angle_move = (search_result.1 - ver_angle).abs() >= grid_angle_threshold;
         if !ver_angle_move  && ver_gridsize != min_gridsize {
             ver_gridsize = ver_gridsize - grid_modifier;
         } else if ver_angle_move && ver_gridsize != gridsize {
             ver_gridsize = ver_gridsize + grid_modifier;
         }
+        zenith_reached = (ver_angle - ver_angle_init).abs <= zenith_reached_treshold;
+        ver_increase_angle = ver_angle - search_result.1 > 0;
         ver_angle = seach_result.1;
 
         // resize the grid horizontally depending on the horizontal angle change
-        let hor_angle_move = (search_result.2 - hor_angle).abs() >= angle_threshold;
+        let hor_angle_move = (search_result.2 - hor_angle).abs() >= grid_angle_threshold;
         if !hor_angle_move  && hor_gridsize != min_gridsize {
             hor_gridsize = hor_gridsize - grid_modifier;
         } else if hor_angle_move && hor_gridsize != gridsize {
@@ -380,7 +393,7 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
 
         //sunset is probably reached when angles dont change and light is low
         if(!ver_angle_move && !hor_angle_move){
-            no_angle_move = no_angle_move + 1;
+            let no_angle_move = no_angle_move + 1;
             if(no_angle_move >= no_angle_move_treshold && search_result.0 < light_treshold){
                 break;
             }
