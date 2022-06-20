@@ -38,7 +38,7 @@ services:
       ingress:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
-      - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config"
+      - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config:ro"
     restart: unless-stopped
     deploy:
       resources:

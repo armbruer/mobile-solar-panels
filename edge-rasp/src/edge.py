@@ -61,17 +61,19 @@ class TimeResource(resource.ObservableResource):
 
 
 class DataPoint:
+    timestamp: datetime.datetime
     temperature: float
     photoresistor: int
     infrared: int
 
-    def __init__(self, temperature, photoresistor, infrared):
+    def __init__(self, timestamp, temperature, photoresistor, infrared):
+        self.timestamp = timestamp
         self.temperature = temperature
         self.photoresistor = photoresistor
         self.infrared = infrared
 
     def __str__(self):
-        return str(self.temperature) + " " + str(self.photoresistor) + " " + str(self.infrared)
+        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " " + str(self.infrared)
 
 
 class SensorData(resource.Resource):
@@ -113,6 +115,7 @@ class SensorData(resource.Resource):
             infrared = int.from_bytes(payload[index+8:index+12], byteorder='little', signed=True)
             index += all_fields_size
 
+            raise NotImplementedError("Missing timestamp design")
             data_point = DataPoint(temperature=temperature, photoresistor=photoresistor, infrared=infrared)
             data.append(data_point)
 
@@ -136,10 +139,10 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
 async def generate_data(received_data_points: asyncio.Queue):
     while True:
-        dp = DataPoint(8651.1876, 588, 9911)
+        dp = DataPoint(datetime.datetime.utcnow().astimezone(datetime.timezone.utc), 8651.1876, 588, 9911)
         await received_data_points.put([dp])
         logging.info("put some data")
-        await asyncio.sleep(5)
+        await asyncio.sleep(1)
 
 
 async def main(conf: Config):
