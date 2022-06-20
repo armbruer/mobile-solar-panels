@@ -93,7 +93,7 @@ fn main() -> Result<(), EspError> {
         init_motors(stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, powered_adc);
         search_vague(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc);
         let gridsize = 7; //TODO calibrate
-        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, gridsize, gridsize, true, true);
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, gridsize, gridsize, true, true, false);
         follow_sun(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, search_result.1, seach_result.2, gridsize);
     }
 
@@ -257,6 +257,7 @@ fn search_exact(
     hor_gridsize: i32, //at least 0, only odd values
     ver_init: bool,
     hor_init: bool,
+    limit_border: bool,
 ) -> (i32, f32, f32, bool, bool) {
     // search for the sun within a grid around the current position
     let step_size = 1; // at least 1 // TODO calibrate
@@ -288,7 +289,7 @@ fn search_exact(
             for m1 in 1..=ver_gridsize {
                 //no need to move in the first iteration as angle2 has been updated
                 if m1 != 1 {
-                    // depending on if we are on the left or on the right move in the opposite direction
+                    // depending on if we are on the left or on the right move in the opposite direction (vertically)
                     let m2_odd = m2 % 2 == 0;
                     let rotate_left = (ver_left_corner && !m2_odd) || (!ver_left_corner && m2_odd);
                     for _ in 1..=step_size {
@@ -297,8 +298,21 @@ fn search_exact(
                 }
                 photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
                 if best_position.0 < photoresistor {
-                    let hor_border = m1_uniform <= border || m1_uniform > hor_gridsize - border;
-                    let ver_border = m2 <= border || m2 > ver_gridsize - border;
+                    //update m1 so it represents the correct coordinates of the grid starting in the "left"-left corner
+                    if (m2_odd && ver_left_corner) || (!m2_odd && !ver_left_corner) {
+                        m1 = ver_gridsize + 1 - m1;
+                    }
+                    //calculate if the new best position is a border or not
+                    let hor_border = if limit_border {
+                        m1 <= border || m1 > hor_gridsize - border
+                    } else {
+                        (!ver_left_corner && m1 <= border) || (ver_left_corner && m1 > ver_gridsize - border)
+                    };
+                    let ver_border = if limit_border {
+                        m2 <= border || m2 > ver_gridsize - border
+                    } else {
+                        (!hor_left_corner && m2 <= border) || (hor_left_corner && m2 > ver_gridsize - border)
+                    };
                     best_position = (photoresistor, angle1, angle2, ver_border, hor_border);
                 }
             }
@@ -349,7 +363,7 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
     let hor_angle = hor_angle_init;
     while hor_angle - hor_angle_init == 0 {
         std::thread::sleep(std::time::Duration::from_secs(sleep));
-        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, ver_gridsize, hor_gridsize, true, true);
+        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, ver_gridsize, hor_gridsize, true, true, false);
         ver_angle = seach_result.1;
         hor_angle = search_result.2;
     }
@@ -362,7 +376,7 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
     //repeat until sunset
     loop {
         std::thread::sleep(std::time::Duration::from_secs(sleep));
-        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, ver_increase_angle, hor_increase_angle, ver_gridsize, hor_gridsize, !zenith_reached, false);
+        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, ver_increase_angle, hor_increase_angle, ver_gridsize, hor_gridsize, !zenith_reached, false, true);
 
         //sleep less long if sun was not in the first grid
         sleep = if search_result.3 || search_result.4 {
