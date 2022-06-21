@@ -1,0 +1,13 @@
+[broker]
+host = "cbroker"
+port = 1883
+username = "rasp1.broker"
+password = "wtDnSuG4Qn29KrvnKfzK"
+client_id = "cloud.db-adapter"
+
+[db]
+user = "postgres"
+password = "postgres"
+host = "solarpanels_db"
+port = 5432
+database = "solarpanels"

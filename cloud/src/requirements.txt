@@ -1,0 +1,6 @@
+asyncpg
+toml
+pydantic
+cx_Freeze
+asyncio_mqtt
+ipaddress

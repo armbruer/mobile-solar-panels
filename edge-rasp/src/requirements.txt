@@ -1,0 +1,4 @@
+aiocoap
+asyncio-mqtt
+toml
+pydantic
