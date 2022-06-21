@@ -18,8 +18,8 @@ use esp_idf_svc::wifi::EspWifi;
 use std::sync::Arc;
 use std::time::Duration;
 
-const SSID: &str = env!("RUST_ESP32_WIFI_SSID");
-const PASS: &str = env!("RUST_ESP32_WIFI_PASS");
+const SSID: &str = "edge-iot";
+const PASS: &str = "EEtjQjV9N91mXo1OYm44";
 
 pub fn wifi(
     netif_stack: Arc<EspNetifStack>,

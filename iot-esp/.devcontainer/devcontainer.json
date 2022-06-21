@@ -35,10 +35,6 @@
     "webfreak.debug",
     "actboy168.tasks"
   ],
-  "containerEnv": {
-    "RUST_ESP32_STD_DEMO_WIFI_SSID": "<SSID>",
-    "RUST_ESP32_STD_DEMO_WIFI_PASS": "<PASSWORD>"
-  },
   "forwardPorts": [
     9012,
     9333,
