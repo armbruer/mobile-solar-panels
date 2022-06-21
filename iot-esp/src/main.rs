@@ -376,7 +376,7 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
     //repeat until sunset
     loop {
         std::thread::sleep(std::time::Duration::from_secs(sleep));
-        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, ver_increase_angle, hor_increase_angle, ver_gridsize, hor_gridsize, !zenith_reached, false, true);
+        let search_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, ver_increase_angle, hor_increase_angle, ver_gridsize, hor_gridsize, zenith_reached, false, true);
 
         //sleep less long if sun was not in the first grid
         sleep = if search_result.3 || search_result.4 {
