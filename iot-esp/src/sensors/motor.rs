@@ -1,4 +1,5 @@
 use embedded_hal::digital::v2::PinState;
+use embedded_hal::digital::v2::OutputPin;
 
 use std::thread;
 use std::time::Duration;
@@ -12,30 +13,27 @@ pub enum Speed {
 }
 
 pub struct StepperMotor<
-    OUTPUT_PIN1: embedded_hal::digital::v2::OutputPin,
-    OUTPUT_PIN2: embedded_hal::digital::v2::OutputPin,
-    OUTPUT_PIN3: embedded_hal::digital::v2::OutputPin,
-    OUTPUT_PIN4: embedded_hal::digital::v2::OutputPin,
+    OutputPin1, OutputPin2, OutputPin3, OutputPin4: OutputPin,
 > {
-    pin1: OUTPUT_PIN1,
-    pin2: OUTPUT_PIN2,
-    pin3: OUTPUT_PIN3,
-    pin4: OUTPUT_PIN4,
+    pin1: OutputPin1,
+    pin2: OutputPin2,
+    pin3: OutputPin3,
+    pin4: OutputPin4,
 }
 
 impl<
-        OUTPUT_PIN1: embedded_hal::digital::v2::OutputPin,
-        OUTPUT_PIN2: embedded_hal::digital::v2::OutputPin,
-        OUTPUT_PIN3: embedded_hal::digital::v2::OutputPin,
-        OUTPUT_PIN4: embedded_hal::digital::v2::OutputPin,
-    > StepperMotor<OUTPUT_PIN1, OUTPUT_PIN2, OUTPUT_PIN3, OUTPUT_PIN4>
+        OutputPin1: OutputPin,
+        OutputPin2: OutputPin,
+        OutputPin3: OutputPin,
+        OutputPin4: OutputPin,
+    > StepperMotor<OutputPin1, OutputPin2, OutputPin3, OutputPin4>
 {
     pub fn new(
-        pin1: OUTPUT_PIN1,
-        pin2: OUTPUT_PIN2,
-        pin3: OUTPUT_PIN3,
-        pin4: OUTPUT_PIN4,
-    ) -> StepperMotor<OUTPUT_PIN1, OUTPUT_PIN2, OUTPUT_PIN3, OUTPUT_PIN4> {
+        pin1: OutputPin1,
+        pin2: OutputPin2,
+        pin3: OutputPin3,
+        pin4: OutputPin4,
+    ) -> StepperMotor<OutputPin1, OutputPin2, OutputPin3, OutputPin4> {
         StepperMotor {
             pin1,
             pin2,
