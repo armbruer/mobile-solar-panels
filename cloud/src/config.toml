@@ -3,6 +3,7 @@ host = "cbroker"
 port = 1883
 username = "rasp1.broker"
 password = "wtDnSuG4Qn29KrvnKfzK"
+client_id = "cloud.db-adapter"
 
 [db]
 user = "postgres"

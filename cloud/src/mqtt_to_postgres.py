@@ -4,6 +4,7 @@ import asyncio
 import logging
 from typing import Callable, Awaitable
 
+import asyncio_mqtt.client
 import asyncpg
 import toml
 from asyncio_mqtt import Client, MqttError
@@ -25,6 +26,7 @@ class ConfigBroker(BaseModel):
     port: int
     username: str
     password: str
+    client_id: str
 
 
 class Config(BaseModel):
@@ -72,7 +74,9 @@ async def main(conf: Config):
     logging.info("Connecting to MQTT broker")
 
     try:
-        async with Client(conf.broker.host, conf.broker.port, username=conf.broker.username, password=conf.broker.password) as client:
+        async with Client(conf.broker.host, conf.broker.port, username=conf.broker.username,
+                          password=conf.broker.password, client_id=conf.broker.client_id,
+                          protocol=asyncio_mqtt.client.ProtocolVersion.V5, clean_start=0) as client:
             logging.info("Connected to MQTT broker")
             await mqtt_db_manager(client, pool, "sensors", db_sensors.setup, db_sensors.parse_insert)
     except MqttError as ex:
