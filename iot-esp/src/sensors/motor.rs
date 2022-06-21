@@ -19,9 +19,9 @@ pub struct StepperMotor<
     pin2: OutputPin2,
     pin3: OutputPin3,
     pin4: OutputPin4,
-    max_angle: f32,
-    step_size: f32,
-    current_angle: f32,
+    max_angle: i32,
+    step_size: i32,
+    current_angle: i32,
     initalized_angles: bool,
 }
 
@@ -37,8 +37,10 @@ impl<
         pin2: OutputPin2,
         pin3: OutputPin3,
         pin4: OutputPin4,
-        max_angle: f32, // larger than 0
-        step_size: f32, // larger than 0
+        max_angle: i32,
+        step_size: i32,
+        current_angle: i32,
+        initalized_angles: bool,
     ) -> StepperMotor<OutputPin1, OutputPin2, OutputPin3, OutputPin4> {
         StepperMotor {
             pin1,
@@ -47,24 +49,32 @@ impl<
             pin4,
             max_angle,
             step_size,
-            current_angle: 0.0,
+            current_angle: 0,
             initalized_angles: false,
         }
     }
 
-    pub fn initAngle(ismax_angle: bool) {
-        if ismax_angle {
-            self.current_angle = self.max_angle;
-        } else {
-            self.current_angle = 0.0;
-        }
+    pub fn max_angle(&self) -> i32 {
+        self.max_angle
+    }
+
+    pub fn step_size(&self) -> i32 {
+        self.step_size
+    }
+
+    pub fn current_angle(&self) -> i32 {
+        self.current_angle
+    }
+
+    pub fn init_angle(&mut self, ismax_angle: bool) {
+        self.current_angle = if ismax_angle { self.max_angle } else { 0 };
         self.initalized_angles = true;
     }
 
-    pub fn rotatableAngle(&mut self, angle: f32) -> bool {
+    pub fn rotatable_angle(&mut self, angle: i32) -> bool {
         if !self.initalized_angles
             || self.current_angle == angle
-            || angle < 0.0
+            || angle < 0
             || angle > self.max_angle
         {
             return false;
@@ -76,22 +86,22 @@ impl<
         }
     }
 
-    pub fn rotatableRight(&mut self) -> bool {
-        return self.rotatableAngle(self.max_angle);
+    pub fn rotatable_right(&mut self) -> bool {
+        return self.rotatable_angle(self.max_angle);
     }
 
-    pub fn rotatableLeft(&mut self) -> bool {
-        return self.rotatableAngle(0.0);
+    pub fn rotatable_left(&mut self) -> bool {
+        return self.rotatable_angle(0);
     }
 
-    pub fn rotateAngleFull(&mut self, motorSpeed: Speed, angle: f32) {
-        while !self.rotatableAngle(angle) {
-            self.rotateAngle(motorSpeed, angle);
+    pub fn rotate_angle_full(&mut self, motorSpeed: Speed, angle: i32) {
+        while !self.rotatable_angle(angle) {
+            self.rotate_angle(motorSpeed, angle);
         }
     }
 
-    pub fn rotateAngle(&mut self, motorSpeed: Speed, angle: f32) -> f32 {
-        if !self.rotatableAngle(angle) {
+    pub fn rotate_angle(&mut self, motorSpeed: Speed, angle: i32) -> i32 {
+        if !self.rotatable_angle(angle) {
             return self.current_angle;
         }
         if self.current_angle < angle {
@@ -101,17 +111,16 @@ impl<
         }
     }
 
-    pub fn rotateLeftRight(&mut self, motorSpeed: Speed, left: bool) -> f32 {
+    pub fn rotateLeftRight(&mut self, motorSpeed: Speed, left: bool) -> i32 {
         if left {
             return self.rotateLeft(motorSpeed);
-        }
-        else {
+        } else {
             return self.rotateRight(motorSpeed);
         }
     }
 
-    pub fn rotateRight(&mut self, motorSpeed: Speed) -> f32 {
-        if !self.rotatableRight() {
+    pub fn rotateRight(&mut self, motorSpeed: Speed) -> i32 {
+        if !self.rotatable_right() {
             return self.current_angle;
         }
 
@@ -172,10 +181,11 @@ impl<
             motorSpeed,
         );
         self.current_angle = self.current_angle + self.step_size;
+        self.current_angle
     }
 
-    pub fn rotateLeft(&mut self, motorSpeed: Speed) -> f32 {
-        if !self.rotatableLeft() {
+    pub fn rotateLeft(&mut self, motorSpeed: Speed) -> i32 {
+        if !self.rotatable_left() {
             return self.current_angle;
         }
 
@@ -236,6 +246,7 @@ impl<
             motorSpeed,
         );
         self.current_angle = self.current_angle - self.step_size;
+        self.current_angle
     }
 
     pub fn stopMotor(&mut self) {

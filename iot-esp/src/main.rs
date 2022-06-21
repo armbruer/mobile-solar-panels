@@ -1,12 +1,13 @@
+mod control;
 mod networking;
 mod sensors;
 
 use std::sync::Arc;
 use std::time::Duration;
-use std::cmp;
 
 use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
+use control::lighttracking::Platform;
 use esp_idf_hal::adc;
 use esp_idf_hal::gpio::{Gpio34, Gpio35};
 use esp_idf_hal::prelude::Peripherals;
@@ -15,7 +16,7 @@ use esp_idf_svc::netif::EspNetifStack;
 use esp_idf_svc::nvs::EspDefaultNvs;
 use esp_idf_svc::sysloop::EspSysLoopStack;
 use esp_idf_sys::EspError;
-use esp_idf_sys::{self as _, sleep}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
+use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 use networking::coap::Connection;
 use sensors::motor::StepperMotor;
@@ -38,8 +39,10 @@ fn main() -> Result<(), EspError> {
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        180.0, //TODO calibrate
-        0.72,  // 1.8   //TODO to be determined
+        180, //TODO calibrate
+        72,  // 0.72, 1.8   //TODO to be determined
+        0,
+        false,
     );
 
     let mut stepper_motor_hor = StepperMotor::new(
@@ -47,8 +50,10 @@ fn main() -> Result<(), EspError> {
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        180.0, //TODO calibrate
-        0.72,  //1.8   //TODO to be determined
+        180, //TODO calibrate
+        72,  // 0.72, 1.8   //TODO to be determined
+        0,
+        false,
     );
 
     let config_photoresistor = adc_interpolator::Config {
@@ -90,11 +95,26 @@ fn main() -> Result<(), EspError> {
     // Main motor algorithm
     let motor_control = false;
     if motor_control {
-        init_motors(stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, powered_adc);
-        search_vague(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc);
+        let mut platform1 = Platform::new(
+            stepper_motor_ver,
+            stepper_motor_hor,
+            interpolator_ir_sensor_1,
+            interpolator_photoresistor,
+        );
+        platform1.init_motors(&mut powered_adc);
+        platform1.search_vague(&mut powered_adc);
         let gridsize = 7; //TODO calibrate
-        let seach_result = search_exact(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, true, true, gridsize, gridsize, true, true, false);
-        follow_sun(stepper_motor_ver, stepper_motor_hor, interpolator_photoresistor, powered_adc, search_result.1, seach_result.2, gridsize);
+        let search_result = platform1.search_exact(
+            &mut powered_adc,
+            true,
+            true,
+            gridsize,
+            gridsize,
+            true,
+            true,
+            false,
+        ).unwrap();
+        platform1.follow_sun(&mut powered_adc, search_result.1, search_result.2, gridsize);
     }
 
     // Demo: Hardware measurements on serial port and motors turning
@@ -121,7 +141,7 @@ fn main() -> Result<(), EspError> {
 
         let thread_measure = std::thread::spawn(move || loop {
             let photoresistor = interpolator_photoresistor.read(&mut powered_adc).unwrap();
-            let ir_sensor = interpolator_ir_sensor.read(&mut powered_adc).unwrap();
+            let ir_sensor = interpolator_ir_sensor_1.read(&mut powered_adc).unwrap();
 
             log::info!(
                 "Photoresitor: {:#?}, IR Sensor: {:#?}",
@@ -170,6 +190,7 @@ fn main() -> Result<(), EspError> {
     Ok(())
 }
 
+/*
 fn init_motors(
     stepper_motor_ver: StepperMotor,
     stepper_motor_hor: StepperMotor,
@@ -414,6 +435,7 @@ fn follow_sun(stepper_motor_ver: StepperMotor,
         }
     }
 }
+*/
 
 fn send_sensor_data(
     conn: &mut Connection,
