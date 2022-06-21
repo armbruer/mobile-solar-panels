@@ -162,7 +162,7 @@ async def main(conf: Config):
     try:
         async with Client(conf.broker.host, conf.broker.port, client_id=conf.broker.client_id) as client:
             logging.info("Connected to MQTT broker")
-            await asyncio.gather(generate_data(received_data_points), worker(client, received_data_points), asyncio.get_running_loop().create_future())
+            await asyncio.gather(worker(client, received_data_points), asyncio.get_running_loop().create_future())
     except MqttError as ex:
         logging.critical("MQTT Error")
         print(ex)
