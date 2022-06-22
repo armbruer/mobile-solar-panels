@@ -80,46 +80,46 @@ impl<
             return false;
         }
         if self.current_angle < angle {
-            return (self.current_angle + self.step_size) < angle;
+            (self.current_angle + self.step_size) < angle
         } else {
-            return (self.current_angle - self.step_size) > angle;
+            (self.current_angle - self.step_size) > angle
         }
     }
 
     pub fn rotatable_right(&mut self) -> bool {
-        return self.rotatable_angle(self.max_angle);
+        self.rotatable_angle(self.max_angle)
     }
 
     pub fn rotatable_left(&mut self) -> bool {
-        return self.rotatable_angle(0);
+        self.rotatable_angle(0)
     }
 
-    pub fn rotate_angle_full(&mut self, motorSpeed: Speed, angle: i32) {
+    pub fn rotate_angle_full(&mut self, motor_speed: Speed, angle: i32) {
         while !self.rotatable_angle(angle) {
-            self.rotate_angle(motorSpeed, angle);
+            self.rotate_angle(motor_speed, angle);
         }
     }
 
-    pub fn rotate_angle(&mut self, motorSpeed: Speed, angle: i32) -> i32 {
+    pub fn rotate_angle(&mut self, motor_speed: Speed, angle: i32) -> i32 {
         if !self.rotatable_angle(angle) {
             return self.current_angle;
         }
         if self.current_angle < angle {
-            return self.rotate_right(motorSpeed);
+            self.rotate_right(motor_speed)
         } else {
-            return self.rotate_left(motorSpeed);
+            self.rotate_left(motor_speed)
         }
     }
 
-    pub fn rotate_left_right(&mut self, motorSpeed: Speed, left: bool) -> i32 {
+    pub fn rotate_left_right(&mut self, motor_speed: Speed, left: bool) -> i32 {
         if left {
-            return self.rotate_left(motorSpeed);
+            self.rotate_left(motor_speed)
         } else {
-            return self.rotate_right(motorSpeed);
+            self.rotate_right(motor_speed)
         }
     }
 
-    pub fn rotate_right(&mut self, motorSpeed: Speed) -> i32 {
+    pub fn rotate_right(&mut self, motor_speed: Speed) -> i32 {
         if !self.rotatable_right() {
             return self.current_angle;
         }
@@ -129,62 +129,62 @@ impl<
             PinState::Low,
             PinState::Low,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::High,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::High,
             PinState::High,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
-        self.current_angle = self.current_angle + self.step_size;
+        self.current_angle += self.step_size;
         self.current_angle
     }
 
-    pub fn rotate_left(&mut self, motorSpeed: Speed) -> i32 {
+    pub fn rotate_left(&mut self, motor_speed: Speed) -> i32 {
         if !self.rotatable_left() {
             return self.current_angle;
         }
@@ -194,58 +194,58 @@ impl<
             PinState::Low,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::High,
             PinState::High,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::Low,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::High,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::Low,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::Low,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
         self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
             PinState::High,
-            motorSpeed,
+            motor_speed,
         );
-        self.current_angle = self.current_angle - self.step_size;
+        self.current_angle -= self.step_size;
         self.current_angle
     }
 
@@ -265,12 +265,12 @@ impl<
         in2: PinState,
         in3: PinState,
         in4: PinState,
-        motorSpeed: Speed,
+        motor_speed: Speed,
     ) {
         self.pin1.set_state(in1);
         self.pin2.set_state(in2);
         self.pin3.set_state(in3);
         self.pin4.set_state(in4);
-        thread::sleep(Duration::from_micros(motorSpeed as u64));
+        thread::sleep(Duration::from_micros(motor_speed as u64));
     }
 }

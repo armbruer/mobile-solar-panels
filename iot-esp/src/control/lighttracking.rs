@@ -81,7 +81,9 @@ impl<
         Pin2,
         LENGTH,
     > {
-        todo!()
+        Platform {
+            stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, interpolator_photoresistor
+        }
     }
 
     pub fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
@@ -384,13 +386,13 @@ impl<
             }
         }
 
-        return Ok((
+        Ok((
             best_position.photoresistor,
             best_position.angle_ver,
             best_position.angle_hor,
             was_ver_border,
             was_hor_border,
-        ));
+        ))
     }
 
     pub fn follow_sun<ADC, Adc>(
