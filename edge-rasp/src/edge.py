@@ -93,6 +93,8 @@ class SensorData(resource.Resource):
     async def render_post(self, request):
         logging.debug(f"POST received payload: {request.payload}")
 
+        edge_current_time = datetime.datetime.utcnow()
+
         payload: bytes = request.payload
         length_size = 4
         if len(payload) < length_size:
@@ -100,20 +102,29 @@ class SensorData(resource.Resource):
 
         length = int.from_bytes(payload[0:4], byteorder='little', signed=False)
 
-        # unix_time + 4 * 3 (temperature, photoresistor, ir sensor)
+        # timestamp + 4 * 3 (temperature, photoresistor, ir sensor)
         all_fields_size = 8 + 4 * 3
-        expected_packet_size = length_size + all_fields_size * length
+        client_current_time_size = 8
+
+        expected_packet_size = length_size + client_current_time_size + all_fields_size * length
         if len(payload) != expected_packet_size:
             return aiocoap.Message(code=aiocoap.numbers.codes.Code.BAD_REQUEST,
                                    payload=b"Expected packet size: " + str(expected_packet_size).encode())
 
+        client_current_time = int.from_bytes(payload[4:12], byteorder='little', signed=False)
+        client_current_time = datetime.datetime.utcfromtimestamp(client_current_time)
+
         data = []
 
-        index = length_size
+        index = length_size + client_current_time_size
         while index < len(payload):
             timestamp = int.from_bytes(payload[index:index:8], byteorder='little', signed=False)
             timestamp = datetime.datetime.utcfromtimestamp(timestamp)
+            # Time that passed since this datapoint was generated
+            time_passed = client_current_time - timestamp
+            timestamp = edge_current_time - time_passed
             index += 8
+
             temperature = struct.unpack('<f', payload[index:index+4])
             index += 4
             photoresistor = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
@@ -124,6 +135,8 @@ class SensorData(resource.Resource):
             data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor, infrared=infrared)
             data.append(data_point)
 
+        assert index == len(payload)
+
         logging.debug("Sending datapoints to message queue...")
         await self.received_data_points.put(data)
 
@@ -131,7 +144,6 @@ class SensorData(resource.Resource):
 
 
 async def worker(client: Client, received_data_points: asyncio.Queue):
-    logging.warning("Creating mock values")
     while True:
         datapoints: List[DataPoint] = await received_data_points.get()
         message = ';'.join(map(str, datapoints))
@@ -143,6 +155,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
 
 async def generate_data(received_data_points: asyncio.Queue):
+    logging.warning("Creating mock values")
     while True:
         dp = DataPoint(datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc), 8651.1876, 588, 9911)
         await received_data_points.put([dp])
@@ -167,7 +180,7 @@ async def main(conf: Config):
     try:
         async with Client(conf.broker.host, conf.broker.port, client_id=conf.broker.client_id) as client:
             logging.info("Connected to MQTT broker")
-            await asyncio.gather(worker(client, received_data_points), asyncio.get_running_loop().create_future())
+            await asyncio.gather(asyncio.get_running_loop().create_future(), worker(client, received_data_points))
     except MqttError as ex:
         logging.critical("MQTT Error")
         print(ex)
