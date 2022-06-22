@@ -120,7 +120,7 @@ fn main() -> Result<(), EspError> {
     }
 
     // Demo: Hardware measurements on serial port and motors turning
-    
+    /* 
     let demo_hardware_measurements = false;
     if demo_hardware_measurements {
         let thread_stepper_motor_ver = std::thread::spawn(move || {
@@ -165,7 +165,8 @@ fn main() -> Result<(), EspError> {
         thread_stepper_motor_hor.join().unwrap();
         thread_measure.join().unwrap();
     }
-
+    */
+    
     let demo_coap = false;
     if demo_coap {
         // TODO hostname
