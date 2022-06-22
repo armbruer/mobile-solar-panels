@@ -434,7 +434,7 @@ impl<
                 true,
                 true,
                 false,
-            ).unwrap();
+            )?;
             (ver_angle, hor_angle) = (search_result.1, search_result.2);
         }
 
@@ -469,9 +469,9 @@ impl<
             // resize the grid vertically depending on the vertical angle change & update vertical direction & zenith boolean
             let ver_angle_move = (search_result.1 - ver_angle).abs() >= grid_angle_threshold;
             if !ver_angle_move && ver_gridsize != min_gridsize {
-                ver_gridsize = ver_gridsize - grid_modifier;
+                ver_gridsize -= grid_modifier;
             } else if ver_angle_move && ver_gridsize != gridsize {
-                ver_gridsize = ver_gridsize + grid_modifier;
+                ver_gridsize += grid_modifier;
             }
 
             zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_threshold;
@@ -481,16 +481,16 @@ impl<
             // resize the grid horizontally depending on the horizontal angle change
             let hor_angle_move = (search_result.2 - hor_angle).abs() >= grid_angle_threshold;
             if !hor_angle_move && hor_gridsize != min_gridsize {
-                hor_gridsize = hor_gridsize - grid_modifier;
+                hor_gridsize -= grid_modifier;
             } else if hor_angle_move && hor_gridsize != gridsize {
-                hor_gridsize = hor_gridsize + grid_modifier;
+                hor_gridsize += grid_modifier;
             }
             hor_angle = search_result.2;
 
             //sunset is probably reached when angles dont change and light is low
             if !ver_angle_move && !hor_angle_move {
-                no_angle_move = no_angle_move + 1;
-                if (no_angle_move >= no_angle_move_threshold && search_result.0 < light_threshold) {
+                no_angle_move += 1;
+                if no_angle_move >= no_angle_move_threshold && search_result.0 < light_threshold {
                     break;
                 }
             } else {
