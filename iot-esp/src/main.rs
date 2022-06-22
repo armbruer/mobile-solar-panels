@@ -114,7 +114,7 @@ fn main() -> Result<(), EspError> {
             true,
             false,
         ).unwrap();
-        platform1.follow_sun(&mut powered_adc, gridsize, gridsize);
+        platform1.follow_sun(&mut powered_adc, gridsize);
     }
 
     // Demo: Hardware measurements on serial port and motors turning

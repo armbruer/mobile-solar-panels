@@ -398,8 +398,7 @@ impl<
     pub fn follow_sun<ADC, Adc>(
         &mut self,
         adc: &mut Adc,
-        ver_gridsize: i32,
-        hor_gridsize: i32,
+        gridsize: i32,
     ) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
@@ -407,6 +406,8 @@ impl<
         Pin2: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
     {
+        let mut ver_gridsize = gridsize;
+        let mut hor_gridsize = gridsize;
         let sleep_modifier = 1; //TODO calibrate
         let grid_modifier = 2; //TODO calibrate
         let min_gridsize = 3; //TODO calibrate
