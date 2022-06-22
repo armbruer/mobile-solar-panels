@@ -39,7 +39,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        180, //TODO calibrate
+        18000, //TODO calibrate
         72,  // 0.72, 1.8   //TODO to be determined
         0,
         false,
@@ -50,7 +50,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        180, //TODO calibrate
+        18000, //TODO calibrate
         72,  // 0.72, 1.8   //TODO to be determined
         0,
         false,

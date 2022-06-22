@@ -356,13 +356,13 @@ impl<
                     self.stepper_motor_ver.rotate_angle_full(
                         High,
                         (self.stepper_motor_ver.current_angle()
-                            - self.stepper_motor_ver.max_angle() / 2)
+                            - 18000)
                             .abs(),
                     );
                     self.stepper_motor_hor.rotate_angle_full(
                         High,
                         (self.stepper_motor_ver.current_angle()
-                            - self.stepper_motor_ver.max_angle() / 2)
+                            - 18000)
                             .abs(),
                     );
                 }
