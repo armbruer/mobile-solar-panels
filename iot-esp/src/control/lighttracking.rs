@@ -97,12 +97,7 @@ impl<
         let ir_sensor_data_close2: u32 = 0; //TODO calibrate
 
         // init stepper_motor_ver angle
-        while self
-            .interpolator_ir_sensor
-            .read(adc)
-            .map_err(|_| LightTrackingError::ADCFailed)?
-            .expect("Interpolation failed")
-            < ir_sensor_data_close1
+        while self.read_ir(adc)? < ir_sensor_data_close1
         {
             self.stepper_motor_ver.rotate_left(Low);
         }
@@ -111,12 +106,7 @@ impl<
 
         // init stepper_motor_hor angle
         //maybe use a second ir sensor
-        while self
-            .interpolator_ir_sensor
-            .read(adc)
-            .map_err(|_| LightTrackingError::ADCFailed)?
-            .expect("Interpolation failed")
-            < ir_sensor_data_close2
+        while self.read_ir(adc)? < ir_sensor_data_close2
         {
             self.stepper_motor_hor.rotate_left(Low);
         }
@@ -140,11 +130,7 @@ impl<
         //search for the sun by moving the motors in an ⧖ shape
         let mut angle_ver = self.stepper_motor_ver.current_angle();
         let mut angle_hor = self.stepper_motor_hor.current_angle();
-        let mut photoresistor = self
-            .interpolator_photoresistor
-            .read(adc)
-            .map_err(|_| LightTrackingError::ADCFailed)?
-            .expect("Interpolation failed");
+        let mut photoresistor = self.read_photoresistor(adc)?;
         let mut best_position = BestPosition {
             photoresistor,
             angle_ver,
@@ -154,11 +140,8 @@ impl<
         //1. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_right() {
             angle_hor = self.stepper_motor_hor.rotate_right(Low);
-            photoresistor = self
-                .interpolator_photoresistor
-                .read(adc)
-                .map_err(|_| LightTrackingError::ADCFailed)?
-                .expect("Interpolation failed");
+            photoresistor = self.read_photoresistor(adc)?;
+
             if best_position.photoresistor < photoresistor {
                 best_position = BestPosition {
                     photoresistor,
@@ -175,11 +158,8 @@ impl<
             angle_ver = self
                 .stepper_motor_ver
                 .rotate_angle(Low, half_max_angle);
-            photoresistor = self
-                .interpolator_photoresistor
-                .read(adc)
-                .map_err(|_| LightTrackingError::ADCFailed)?
-                .expect("Interpolation failed");
+            photoresistor = self.read_photoresistor(adc)?;
+
             if best_position.photoresistor < photoresistor {
                 best_position = BestPosition {
                     photoresistor,
@@ -193,11 +173,8 @@ impl<
         //3. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_left() {
             angle_hor = self.stepper_motor_hor.rotate_left(Low);
-            photoresistor = self
-                .interpolator_photoresistor
-                .read(adc)
-                .map_err(|_| LightTrackingError::ADCFailed)?
-                .expect("Interpolation failed");
+            photoresistor = self.read_photoresistor(adc)?;
+
             if best_position.photoresistor < photoresistor {
                 best_position = BestPosition {
                     photoresistor,
@@ -208,14 +185,11 @@ impl<
         }
         self.stepper_motor_hor.stop_motor();
 
+        
         /* 
         let refresh_best_position =
             |angle_ver, angle_hor| -> Result<BestPosition, LightTrackingError> {
-                photoresistor = self
-                    .interpolator_photoresistor
-                    .read(adc)
-                    .map_err(|_| LightTrackingError::ADCFailed)?
-                    .expect("Interpolation failed");
+                photoresistor = self.read_photoresistor(adc)?;
                 if best_position.photoresistor < photoresistor {
                     Ok(BestPosition {
                         photoresistor,
@@ -226,16 +200,13 @@ impl<
                     Ok(best_position)
                 }
             };
-        
-            */ 
+        */
+
+
         //4. line of the ⧖ shape
         while self.stepper_motor_ver.rotatable_right() {
             angle_ver = self.stepper_motor_ver.rotate_right(Low);
-            photoresistor = self
-                .interpolator_photoresistor
-                .read(adc)
-                .map_err(|_| LightTrackingError::ADCFailed)?
-                .expect("Interpolation failed");
+            photoresistor = self.read_photoresistor(adc)?;
             if best_position.photoresistor < photoresistor {
                 best_position = BestPosition {
                     photoresistor,
@@ -329,11 +300,7 @@ impl<
                         }
                     }
 
-                    let photoresistor = self
-                        .interpolator_photoresistor
-                        .read(adc)
-                        .map_err(|_| LightTrackingError::ADCFailed)?
-                        .expect("Interpolation failed");
+                    let photoresistor = self.read_ir(adc)?;
 
                     if best_position.photoresistor < photoresistor {
                         //update m1 so it represents the correct coordinates of the grid starting in the "left"-left corner
@@ -514,4 +481,33 @@ impl<
 
         Ok(())
     }
+
+    fn read_ir<Adc, ADC> (&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError> 
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+    {
+        Ok(self
+            .interpolator_ir_sensor
+            .read(adc)
+            .map_err(|_| LightTrackingError::ADCFailed)?
+            .expect("Interpolation of infrared sensor failed"))
+    }
+
+    fn read_photoresistor<Adc, ADC> (&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError> 
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+    {
+        Ok(self
+            .interpolator_photoresistor
+            .read(adc)
+            .map_err(|_| LightTrackingError::ADCFailed)?
+            .expect("Interpolation of photoresistor sensor failed"))
+    }
+
 }
