@@ -120,23 +120,24 @@ fn main() -> Result<(), EspError> {
     }
 
     // Demo: Hardware measurements on serial port and motors turning
+    
     let demo_hardware_measurements = false;
     if demo_hardware_measurements {
         let thread_stepper_motor_ver = std::thread::spawn(move || {
             for _ in 0..20 {
                 for _ in 0..200 {
-                    stepper_motor_ver.rotateRight(sensors::motor::Speed::HighSpeed);
+                    stepper_motor_ver.rotate_right(sensors::motor::Speed::HighSpeed);
                 }
-                stepper_motor_ver.stopMotor();
+                stepper_motor_ver.stop_motor();
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         });
         let thread_stepper_motor_hor = std::thread::spawn(move || {
             for _ in 0..20 {
                 for _ in 0..200 {
-                    stepper_motor_hor.rotateLeft(sensors::motor::Speed::HighSpeed);
+                    stepper_motor_hor.rotate_left(sensors::motor::Speed::HighSpeed);
                 }
-                stepper_motor_hor.stopMotor();
+                stepper_motor_hor.stop_motor();
                 std::thread::sleep(std::time::Duration::from_secs(1));
             }
         });

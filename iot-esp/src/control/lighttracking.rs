@@ -102,10 +102,10 @@ impl<
             .expect("Interpolation failed")
             < ir_sensor_data_close1
         {
-            self.stepper_motor_ver.rotateLeft(LowSpeed);
+            self.stepper_motor_ver.rotate_left(LowSpeed);
         }
         self.stepper_motor_ver.init_angle(false);
-        self.stepper_motor_ver.stopMotor();
+        self.stepper_motor_ver.stop_motor();
 
         // init stepper_motor_hor angle
         //maybe use a second ir sensor
@@ -116,10 +116,10 @@ impl<
             .expect("Interpolation failed")
             < ir_sensor_data_close2
         {
-            self.stepper_motor_hor.rotateLeft(LowSpeed);
+            self.stepper_motor_hor.rotate_left(LowSpeed);
         }
         self.stepper_motor_hor.init_angle(false);
-        self.stepper_motor_hor.stopMotor();
+        self.stepper_motor_hor.stop_motor();
         Ok(())
     }
 
@@ -136,14 +136,14 @@ impl<
             angle_hor: i32,
         }
         //search for the sun by moving the motors in an ⧖ shape
-        let angle_ver = self.stepper_motor_ver.current_angle();
-        let angle_hor = self.stepper_motor_hor.current_angle();
-        let photoresistor = self
+        let mut angle_ver = self.stepper_motor_ver.current_angle();
+        let mut angle_hor = self.stepper_motor_hor.current_angle();
+        let mut photoresistor = self
             .interpolator_photoresistor
             .read(adc)
             .map_err(|_| LightTrackingError::ADCFailed)?
             .expect("Interpolation failed");
-        let best_position = BestPosition {
+        let mut best_position = BestPosition {
             photoresistor,
             angle_ver,
             angle_hor,
@@ -151,7 +151,7 @@ impl<
 
         //1. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_right() {
-            angle_hor = self.stepper_motor_hor.rotateRight(LowSpeed);
+            angle_hor = self.stepper_motor_hor.rotate_right(LowSpeed);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -188,7 +188,7 @@ impl<
 
         //3. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_left() {
-            angle_hor = self.stepper_motor_hor.rotateLeft(LowSpeed);
+            angle_hor = self.stepper_motor_hor.rotate_left(LowSpeed);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -203,6 +203,7 @@ impl<
             }
         }
 
+        /* 
         let refresh_best_position =
             |angle_ver, angle_hor| -> Result<BestPosition, LightTrackingError> {
                 photoresistor = self
@@ -220,10 +221,11 @@ impl<
                     Ok(best_position)
                 }
             };
-
+        
+            */ 
         //4. line of the ⧖ shape
         while self.stepper_motor_ver.rotatable_right() {
-            angle_ver = self.stepper_motor_ver.rotateRight(LowSpeed);
+            angle_ver = self.stepper_motor_ver.rotate_right(LowSpeed);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -257,21 +259,29 @@ impl<
         ver_init: bool,
         hor_init: bool,
         limit_border: bool,
-    ) -> Result<(i32, i32, i32, bool, bool), LightTrackingError>
+    ) -> Result<(u32, i32, i32, bool, bool), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
     {
+        struct BestPosition {
+            photoresistor: u32,
+            angle_ver: i32,
+            angle_hor: i32,
+            ver_border: bool,
+            hor_border: bool
+        }
+
         // search for the sun within a grid around the current position
         let step_size = 1; // at least 1 // TODO calibrate
         let border = 1; // TODO calibrate
-        let angle1 = self.stepper_motor_ver.current_angle();
-        let angle2 = self.stepper_motor_hor.current_angle();
-        let best_position = (0, angle1, angle2, true, true);
-        let was_ver_border = false;
-        let was_ver_border = false;
+        let mut angle_ver = self.stepper_motor_ver.current_angle();
+        let mut angle_hor = self.stepper_motor_hor.current_angle();
+        let mut best_position = BestPosition {photoresistor: 0, angle_ver, angle_hor, ver_border: true, hor_border: true};
+        let mut was_ver_border = false;
+        let mut was_hor_border = false;
 
         //repeat until best position is reached
         loop {
@@ -279,23 +289,23 @@ impl<
             if ver_init {
                 let ver_offset = (ver_gridsize + 1) / 2;
                 for _ in 1..ver_offset {
-                    angle1 = self
+                    angle_ver = self
                         .stepper_motor_ver
-                        .rotateLeftRight(HighSpeed, ver_left_corner);
+                        .rotate_left_right(HighSpeed, ver_left_corner);
                 }
             }
             if hor_init {
                 let hor_offset = (hor_gridsize + 1) / 2;
                 for _ in 1..hor_offset {
-                    angle2 = self
+                    angle_hor = self
                         .stepper_motor_hor
-                        .rotateLeftRight(HighSpeed, hor_left_corner);
+                        .rotate_left_right(HighSpeed, hor_left_corner);
                 }
             }
 
             //go through each position in the grid in wavy lines and check if one is better
             for m2 in 1..=hor_gridsize {
-                for m1 in 1..=ver_gridsize {
+                for mut m1 in 1..=ver_gridsize {
                     //no need to move in the first iteration as angle2 has been updated
                     let m2_odd = m2 % 2 == 0;
                     let rotate_left = (ver_left_corner && !m2_odd) || (!ver_left_corner && m2_odd);
@@ -303,9 +313,9 @@ impl<
                     if m1 != 1 {
                         // depending on if we are on the left or on the right move in the opposite direction (vertically)
                         for _ in 1..=step_size {
-                            angle1 = self
+                            angle_ver = self
                                 .stepper_motor_ver
-                                .rotateLeftRight(LowSpeed, rotate_left);
+                                .rotate_left_right(LowSpeed, rotate_left);
                         }
                     }
 
@@ -315,7 +325,7 @@ impl<
                         .map_err(|_| LightTrackingError::ADCFailed)?
                         .expect("Interpolation failed");
 
-                    if best_position.0 < photoresistor {
+                    if best_position.photoresistor < photoresistor {
                         //update m1 so it represents the correct coordinates of the grid starting in the "left"-left corner
                         if (m2_odd && ver_left_corner) || (!m2_odd && !ver_left_corner) {
                             m1 = ver_gridsize + 1 - m1;
@@ -333,13 +343,13 @@ impl<
                             (!hor_left_corner && m2 <= border)
                                 || (hor_left_corner && m2 > ver_gridsize - border)
                         };
-                        best_position = (photoresistor, angle1, angle2, ver_border, hor_border);
+                        best_position = BestPosition { photoresistor, angle_ver, angle_hor, ver_border, hor_border };
                     }
                 }
 
                 //if we cannot move in one direction, rotate both motors by 180°
-                if (left_corner && !self.stepper_motor_hor.rotatable_right())
-                    || (!left_corner && !self.stepper_motor_hor.rotatable_left())
+                if (hor_left_corner && !self.stepper_motor_hor.rotatable_right())
+                    || (!hor_left_corner && !self.stepper_motor_hor.rotatable_left())
                 {
                     self.stepper_motor_ver.rotate_angle_full(
                         HighSpeed,
@@ -354,32 +364,33 @@ impl<
                             .abs(),
                     );
                 }
-                angle2 = self
+                angle_hor = self
                     .stepper_motor_hor
-                    .rotateLeftRight(LowSpeed, !hor_left_corner);
+                    .rotate_left_right(LowSpeed, !hor_left_corner);
             }
 
             //move to best position
             self.stepper_motor_ver
-                .rotate_angle_full(HighSpeed, best_position.1);
+                .rotate_angle_full(HighSpeed, best_position.angle_ver);
             self.stepper_motor_hor
-                .rotate_angle_full(HighSpeed, best_position.2);
+                .rotate_angle_full(HighSpeed, best_position.angle_hor);
 
             //stop if best position is not a border or we only want to execute once
-            if !best_position.3 && !best_position.4 {
+            if !best_position.ver_border && !best_position.hor_border {
                 break;
             } else {
-                was_ver_border = was_ver_border || best_position.3;
-                was_hor_border = was_hor_border || best_position.4;
+                was_ver_border = was_ver_border || best_position.ver_border;
+                was_hor_border = was_hor_border || best_position.hor_border;
             }
         }
-        return (
-            best_position.0,
-            best_position.1,
-            best_position.2,
+
+        return Ok((
+            best_position.photoresistor,
+            best_position.angle_ver,
+            best_position.angle_hor,
             was_ver_border,
             was_hor_border,
-        );
+        ));
     }
 
     pub fn follow_sun<ADC, Adc>(
@@ -395,13 +406,13 @@ impl<
         Pin2: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
     {
-        let ver_gridsize = gridsize;
-        let hor_gridsize = gridsize;
+        let mut ver_gridsize = gridsize;
+        let mut hor_gridsize = gridsize;
         let sleep_modifier = 1; //TODO calibrate
         let grid_modifier = 2; //TODO calibrate
         let min_gridsize = 3; //TODO calibrate
         let grid_angle_threshold = 3; //TODO calibrate
-        let sleep_seconds = 60; //TODO calibrate
+        let mut sleep_seconds = 60; //TODO calibrate
         let no_angle_move_treshold = 5; //TODO calibrate
         let light_treshold = 5; //TODO calibrate
         let zenith_reached_treshold = 0; //TODO calibrate
@@ -421,17 +432,18 @@ impl<
                 true,
                 true,
                 false,
-            );
-            (ver_angle, hor_angle) = search_result;
+            ).unwrap();
+            (ver_angle, hor_angle) = (search_result.1, search_result.2);
         }
 
         let mut ver_increase_angle = ver_angle - ver_angle_init > 0;
-        let mut hor_increase_angle = hor_angle - hor_angle_init > 0;
+        let hor_increase_angle = hor_angle - hor_angle_init > 0;
 
         //calculate if the vertical angle does not change and the zenith may have been reached
-        let zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_treshold;
+        let mut zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_treshold;
 
         //repeat until sunset
+        let mut no_angle_move = 0;
         loop {
             sleep(Duration::from_secs(sleep_seconds));
             let search_result = self.search_exact(
@@ -475,10 +487,12 @@ impl<
 
             //sunset is probably reached when angles dont change and light is low
             if !ver_angle_move && !hor_angle_move {
-                let no_angle_move = no_angle_move + 1;
-                if (no_angle_move >= no_angle_move_treshold && search_result.0 < light_treshold) {
+                no_angle_move = no_angle_move + 1;
+                if no_angle_move >= no_angle_move_treshold && search_result.0 < light_treshold {
                     break;
                 }
+            } else {
+                no_angle_move = 0;
             }
         }
 

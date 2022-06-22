@@ -105,75 +105,75 @@ impl<
             return self.current_angle;
         }
         if self.current_angle < angle {
-            return self.rotateRight(motorSpeed);
+            return self.rotate_right(motorSpeed);
         } else {
-            return self.rotateLeft(motorSpeed);
+            return self.rotate_left(motorSpeed);
         }
     }
 
-    pub fn rotateLeftRight(&mut self, motorSpeed: Speed, left: bool) -> i32 {
+    pub fn rotate_left_right(&mut self, motorSpeed: Speed, left: bool) -> i32 {
         if left {
-            return self.rotateLeft(motorSpeed);
+            return self.rotate_left(motorSpeed);
         } else {
-            return self.rotateRight(motorSpeed);
+            return self.rotate_right(motorSpeed);
         }
     }
 
-    pub fn rotateRight(&mut self, motorSpeed: Speed) -> i32 {
+    pub fn rotate_right(&mut self, motorSpeed: Speed) -> i32 {
         if !self.rotatable_right() {
             return self.current_angle;
         }
 
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::Low,
             PinState::High,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::High,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::High,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::High,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
@@ -184,61 +184,61 @@ impl<
         self.current_angle
     }
 
-    pub fn rotateLeft(&mut self, motorSpeed: Speed) -> i32 {
+    pub fn rotate_left(&mut self, motorSpeed: Speed) -> i32 {
         if !self.rotatable_left() {
             return self.current_angle;
         }
 
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::High,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::Low,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::High,
             PinState::High,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::Low,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::High,
             PinState::High,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::Low,
             PinState::High,
             motorSpeed,
         );
-        self.setMotor(
+        self.set_motor(
             PinState::High,
             PinState::Low,
             PinState::Low,
@@ -249,8 +249,8 @@ impl<
         self.current_angle
     }
 
-    pub fn stopMotor(&mut self) {
-        self.setMotor(
+    pub fn stop_motor(&mut self) {
+        self.set_motor(
             PinState::Low,
             PinState::Low,
             PinState::Low,
@@ -259,7 +259,7 @@ impl<
         );
     }
 
-    pub fn setMotor(
+    pub fn set_motor(
         &mut self,
         in1: PinState,
         in2: PinState,
