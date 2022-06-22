@@ -13,7 +13,10 @@ pub enum Speed {
 }
 
 pub struct StepperMotor<
-    OutputPin1, OutputPin2, OutputPin3, OutputPin4: OutputPin,
+    OutputPin1,
+    OutputPin2,
+    OutputPin3,
+    OutputPin4,
 > {
     pin1: OutputPin1,
     pin2: OutputPin2,
