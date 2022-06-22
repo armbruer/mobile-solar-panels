@@ -95,7 +95,7 @@ impl<
     }
 
     pub fn rotate_angle_full(&mut self, motor_speed: Speed, angle: i32) {
-        while !self.rotatable_angle(angle) {
+        while self.rotatable_angle(angle) {
             self.rotate_angle(motor_speed, angle);
         }
     }

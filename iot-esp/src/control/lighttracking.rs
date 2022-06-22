@@ -377,7 +377,7 @@ impl<
             self.stepper_motor_hor
                 .rotate_angle_full(HighSpeed, best_position.angle_hor);
 
-            //stop if best position is not a border or we only want to execute once
+            //stop if best position is not a border
             if !best_position.ver_border && !best_position.hor_border {
                 break;
             } else {
@@ -398,9 +398,8 @@ impl<
     pub fn follow_sun<ADC, Adc>(
         &mut self,
         adc: &mut Adc,
-        ver_angle_init: i32,
-        hor_angle_init: i32,
-        gridsize: i32,
+        ver_gridsize: i32,
+        hor_gridsize: i32,
     ) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
@@ -408,18 +407,18 @@ impl<
         Pin2: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
     {
-        let mut ver_gridsize = gridsize;
-        let mut hor_gridsize = gridsize;
         let sleep_modifier = 1; //TODO calibrate
         let grid_modifier = 2; //TODO calibrate
         let min_gridsize = 3; //TODO calibrate
         let grid_angle_threshold = 3; //TODO calibrate
         let mut sleep_seconds = 60; //TODO calibrate
-        let no_angle_move_treshold = 5; //TODO calibrate
-        let light_treshold = 5; //TODO calibrate
-        let zenith_reached_treshold = 0; //TODO calibrate
+        let no_angle_move_threshold = 5; //TODO calibrate
+        let light_threshold = 5; //TODO calibrate
+        let zenith_reached_threshold = 0; //TODO calibrate
 
         //calculate the direction the sun moves horizontally and vertically
+        let ver_angle_init = self.stepper_motor_ver.current_angle();
+        let hor_angle_init = self.stepper_motor_ver.current_angle();
         let mut ver_angle = ver_angle_init;
         let mut hor_angle = hor_angle_init;
 
@@ -442,7 +441,7 @@ impl<
         let hor_increase_angle = hor_angle - hor_angle_init > 0;
 
         //calculate if the vertical angle does not change and the zenith may have been reached
-        let mut zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_treshold;
+        let mut zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_threshold;
 
         //repeat until sunset
         let mut no_angle_move = 0;
@@ -474,7 +473,7 @@ impl<
                 ver_gridsize = ver_gridsize + grid_modifier;
             }
 
-            zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_treshold;
+            zenith_reached = (ver_angle - ver_angle_init).abs() <= zenith_reached_threshold;
             ver_increase_angle = ver_angle - search_result.1 > 0;
             ver_angle = search_result.1;
 
@@ -490,7 +489,7 @@ impl<
             //sunset is probably reached when angles dont change and light is low
             if !ver_angle_move && !hor_angle_move {
                 no_angle_move = no_angle_move + 1;
-                if no_angle_move >= no_angle_move_treshold && search_result.0 < light_treshold {
+                if (no_angle_move >= no_angle_move_threshold && search_result.0 < light_threshold) {
                     break;
                 }
             } else {

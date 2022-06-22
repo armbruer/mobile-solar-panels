@@ -104,19 +104,17 @@ fn main() -> Result<(), EspError> {
         platform1.init_motors(&mut powered_adc);
         platform1.search_vague(&mut powered_adc);
         let gridsize = 7; //TODO calibrate
-        let search_result = platform1
-            .search_exact(
-                &mut powered_adc,
-                true,
-                true,
-                gridsize,
-                gridsize,
-                true,
-                true,
-                false,
-            )
-            .unwrap();
-        platform1.follow_sun(&mut powered_adc, search_result.1, search_result.2, gridsize);
+        platform1.search_exact(
+            &mut powered_adc,
+            true,
+            true,
+            gridsize,
+            gridsize,
+            true,
+            true,
+            false,
+        ).unwrap();
+        platform1.follow_sun(&mut powered_adc, gridsize, gridsize);
     }
 
     // Demo: Hardware measurements on serial port and motors turning
