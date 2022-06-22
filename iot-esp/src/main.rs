@@ -161,7 +161,7 @@ fn main() -> Result<(), EspError> {
         thread_measure.join().unwrap();
     }
     */
-    
+
     let demo_coap = false;
     if demo_coap {
         // TODO hostname
@@ -171,14 +171,11 @@ fn main() -> Result<(), EspError> {
             Arc::new(EspDefaultNvs::new()?),
         );
 
-            std::thread::sleep(std::time::Duration::from_secs(10));
-        };
-
-        let mut conn = Connection::new();
+        let mut coap_conn = Connection::new();
 
         loop {
             send_sensor_data(
-                &mut conn,
+                &mut coap_conn,
                 "10.0.100.1:5683",
                 &[
                     std::time::SystemTime::now(),
@@ -205,15 +202,23 @@ fn send_sensor_data(
     photoresistor: &[i32],
     infrared: &[i32],
 ) {
-    let mut payload = vec![];
-
+    // Assert all data parameters have same length
     debug_assert_eq!(timestamp.len(), temperature.len());
     debug_assert_eq!(temperature.len(), photoresistor.len());
     debug_assert_eq!(photoresistor.len(), infrared.len());
 
-    payload.extend_from_slice(&(temperature.len() as u32).to_le_bytes());
+    // length_s + timestamp_s + datasets_length * (timestamp + temperature + photoresistor + IRsensor)
+    let mut payload = vec![0; 4 + 8 + timestamp.len() * (8 + 4 * 3)];
 
-    // TODO prevent fragementation
+    let mut index = 0;
+    // 4 bytes: Amount of datasets in payload
+    payload[index..index + 4].copy_from_slice(&(timestamp.len() as u32).to_le_bytes());
+    index += 4;
+    // 8 bytes: Placeholder for current SystemTime
+    payload[index..index + 8].copy_from_slice(&0u64.to_le_bytes());
+    index += 8;
+
+    // TODO: prevent fragementation
     for (((time, temp), photo), infra) in timestamp
         .iter()
         .zip(temperature.iter())
@@ -224,11 +229,26 @@ fn send_sensor_data(
             .duration_since(std::time::SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        payload.extend_from_slice(&unix_time.to_le_bytes());
-        payload.extend_from_slice(&temp.to_le_bytes());
-        payload.extend_from_slice(&photo.to_le_bytes());
-        payload.extend_from_slice(&infra.to_le_bytes());
+        payload[index..index + 8].copy_from_slice(&unix_time.to_le_bytes());
+        index += 8;
+        payload[index..index + 4].copy_from_slice(&temp.to_le_bytes());
+        index += 4;
+        payload[index..index + 4].copy_from_slice(&photo.to_le_bytes());
+        index += 4;
+        payload[index..index + 4].copy_from_slice(&infra.to_le_bytes());
+        index += 4;
     }
+
+    debug_assert_eq!(index, payload.len());
+
+    // Set current SystemTime as reference for the other timestamps
+    payload[4..4 + 8].copy_from_slice(
+        &std::time::SystemTime::now()
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_le_bytes(),
+    );
 
     conn.send(RequestType::Post, addr, "/sensor/data", payload);
 }
