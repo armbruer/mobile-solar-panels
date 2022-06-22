@@ -1,0 +1,38 @@
+echo rasp-edge | sudo tee /etc/hostname
+sudo apt install hostapd dnsmasq docker-compose
+sudo systemctl unmask hostapd
+sudo systemctl enable hostapd
+# Set wifi location to your country: 5-L4-<your iso code>
+sudo raspi-config
+
+sudo nano /etc/hostapd/hostapd.conf
+# Schnittstelle und Treiber
+interface=wlan0
+
+# WLAN-Konfiguration
+ssid=edge-iot
+hw_mode=g
+channel=1
+macaddr_acl=0
+ignore_broadcast_ssid=0
+
+# WLAN-Verschlüsselung
+auth_algs=1
+wpa=2
+wpa_passphrase=EEtjQjV9N91mXo1OYm44
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=TKIP
+rsn_pairwise=CCMP
+
+
+sudo nano /etc/dnsmasq.d/hostspot
+interface=wlan0
+  dhcp-range=10.0.100.2,10.0.100.100,255.255.255.0,24h
+
+
+sudo nano /etc/dhcpcd.conf # Add
+interface wlan0
+static ip_address=10.0.100.1/24
+
+
+sudo reboot
