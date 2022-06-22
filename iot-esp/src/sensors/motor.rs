@@ -71,12 +71,10 @@ impl<
 
     pub fn init_angle(&mut self, ismax_angle: bool) {
         self.current_angle = if ismax_angle { self.max_angle } else { 0 };
-        self.initalized_angles = true;
     }
 
     pub fn rotatable_angle(&mut self, angle: i32) -> bool {
-        if !self.initalized_angles
-            || self.current_angle == angle
+        if self.current_angle == angle
             || angle < 0
             || angle > self.max_angle
         {
@@ -183,7 +181,9 @@ impl<
             PinState::High,
             motor_speed,
         );
-        self.current_angle += self.step_size;
+        if self.initalized_angles {
+            self.current_angle += self.step_size;
+        }
         self.current_angle
     }
 
@@ -248,7 +248,9 @@ impl<
             PinState::High,
             motor_speed,
         );
-        self.current_angle -= self.step_size;
+        if self.initalized_angles {
+            self.current_angle -= self.step_size;
+        }
         self.current_angle
     }
 

@@ -52,7 +52,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio26.into_output()?,
         18000, //TODO calibrate
         72,  // 0.72, 1.8   //TODO to be determined
-        0,
+        90,
         false,
     );
 
