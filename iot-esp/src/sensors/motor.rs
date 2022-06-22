@@ -71,6 +71,7 @@ impl<
 
     pub fn init_angle(&mut self, ismax_angle: bool) {
         self.current_angle = if ismax_angle { self.max_angle } else { 0 };
+        self.initalized_angles = true;
     }
 
     pub fn rotatable_angle(&mut self, angle: i32) -> bool {
