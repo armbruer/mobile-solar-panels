@@ -88,10 +88,6 @@ fn main() -> Result<(), EspError> {
         adc::config::Config::new().calibration(true),
     )?;
 
-    let netif_stack = Arc::new(EspNetifStack::new()?);
-    let sys_loop_stack = Arc::new(EspSysLoopStack::new()?);
-    let default_nvs = Arc::new(EspDefaultNvs::new()?);
-
     // Main motor algorithm
     let motor_control = false;
     if motor_control {
@@ -169,7 +165,14 @@ fn main() -> Result<(), EspError> {
     let demo_coap = false;
     if demo_coap {
         // TODO hostname
-        let _wifi = networking::wifi::wifi(netif_stack, sys_loop_stack, default_nvs)?;
+        let _wifi = networking::wifi::wifi(
+            Arc::new(EspNetifStack::new()?),
+            Arc::new(EspSysLoopStack::new()?),
+            Arc::new(EspDefaultNvs::new()?),
+        );
+
+            std::thread::sleep(std::time::Duration::from_secs(10));
+        };
 
         let mut conn = Connection::new();
 
@@ -217,7 +220,10 @@ fn send_sensor_data(
         .zip(photoresistor.iter())
         .zip(infrared.iter())
     {
-        let unix_time = time.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        let unix_time = time
+            .duration_since(std::time::SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         payload.extend_from_slice(&unix_time.to_le_bytes());
         payload.extend_from_slice(&temp.to_le_bytes());
         payload.extend_from_slice(&photo.to_le_bytes());
