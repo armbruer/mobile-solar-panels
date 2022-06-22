@@ -1,6 +1,6 @@
 use std::{thread::sleep, time::Duration};
 
-use crate::sensors::motor::Speed::{HighSpeed, LowSpeed};
+use crate::sensors::motor::Speed::{High, Low};
 use crate::sensors::motor::StepperMotor;
 use adc_interpolator::AdcInterpolator;
 use embedded_hal::{
@@ -104,7 +104,7 @@ impl<
             .expect("Interpolation failed")
             < ir_sensor_data_close1
         {
-            self.stepper_motor_ver.rotate_left(LowSpeed);
+            self.stepper_motor_ver.rotate_left(Low);
         }
         self.stepper_motor_ver.init_angle(false);
         self.stepper_motor_ver.stop_motor();
@@ -118,7 +118,7 @@ impl<
             .expect("Interpolation failed")
             < ir_sensor_data_close2
         {
-            self.stepper_motor_hor.rotate_left(LowSpeed);
+            self.stepper_motor_hor.rotate_left(Low);
         }
         self.stepper_motor_hor.init_angle(false);
         self.stepper_motor_hor.stop_motor();
@@ -153,7 +153,7 @@ impl<
 
         //1. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_right() {
-            angle_hor = self.stepper_motor_hor.rotate_right(LowSpeed);
+            angle_hor = self.stepper_motor_hor.rotate_right(Low);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -173,7 +173,7 @@ impl<
         while self.stepper_motor_ver.rotatable_angle(half_max_angle) {
             angle_ver = self
                 .stepper_motor_ver
-                .rotate_angle(LowSpeed, half_max_angle);
+                .rotate_angle(Low, half_max_angle);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -190,7 +190,7 @@ impl<
 
         //3. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_left() {
-            angle_hor = self.stepper_motor_hor.rotate_left(LowSpeed);
+            angle_hor = self.stepper_motor_hor.rotate_left(Low);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -227,7 +227,7 @@ impl<
             */ 
         //4. line of the ⧖ shape
         while self.stepper_motor_ver.rotatable_right() {
-            angle_ver = self.stepper_motor_ver.rotate_right(LowSpeed);
+            angle_ver = self.stepper_motor_ver.rotate_right(Low);
             photoresistor = self
                 .interpolator_photoresistor
                 .read(adc)
@@ -244,9 +244,9 @@ impl<
 
         //move to best position
         self.stepper_motor_ver
-            .rotate_angle_full(HighSpeed, best_position.angle_ver);
+            .rotate_angle_full(High, best_position.angle_ver);
         self.stepper_motor_hor
-            .rotate_angle_full(HighSpeed, best_position.angle_hor);
+            .rotate_angle_full(High, best_position.angle_hor);
 
         Ok(())
     }
@@ -293,7 +293,7 @@ impl<
                 for _ in 1..ver_offset {
                     angle_ver = self
                         .stepper_motor_ver
-                        .rotate_left_right(HighSpeed, ver_left_corner);
+                        .rotate_left_right(High, ver_left_corner);
                 }
             }
             if hor_init {
@@ -301,7 +301,7 @@ impl<
                 for _ in 1..hor_offset {
                     angle_hor = self
                         .stepper_motor_hor
-                        .rotate_left_right(HighSpeed, hor_left_corner);
+                        .rotate_left_right(High, hor_left_corner);
                 }
             }
 
@@ -317,7 +317,7 @@ impl<
                         for _ in 1..=step_size {
                             angle_ver = self
                                 .stepper_motor_ver
-                                .rotate_left_right(LowSpeed, rotate_left);
+                                .rotate_left_right(Low, rotate_left);
                         }
                     }
 
@@ -354,13 +354,13 @@ impl<
                     || (!hor_left_corner && !self.stepper_motor_hor.rotatable_left())
                 {
                     self.stepper_motor_ver.rotate_angle_full(
-                        HighSpeed,
+                        High,
                         (self.stepper_motor_ver.current_angle()
                             - self.stepper_motor_ver.max_angle() / 2)
                             .abs(),
                     );
                     self.stepper_motor_hor.rotate_angle_full(
-                        HighSpeed,
+                        High,
                         (self.stepper_motor_ver.current_angle()
                             - self.stepper_motor_ver.max_angle() / 2)
                             .abs(),
@@ -368,14 +368,14 @@ impl<
                 }
                 angle_hor = self
                     .stepper_motor_hor
-                    .rotate_left_right(LowSpeed, !hor_left_corner);
+                    .rotate_left_right(Low, !hor_left_corner);
             }
 
             //move to best position
             self.stepper_motor_ver
-                .rotate_angle_full(HighSpeed, best_position.angle_ver);
+                .rotate_angle_full(High, best_position.angle_ver);
             self.stepper_motor_hor
-                .rotate_angle_full(HighSpeed, best_position.angle_hor);
+                .rotate_angle_full(High, best_position.angle_hor);
 
             //stop if best position is not a border
             if !best_position.ver_border && !best_position.hor_border {
