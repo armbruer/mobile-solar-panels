@@ -82,7 +82,10 @@ impl<
         LENGTH,
     > {
         Platform {
-            stepper_motor_ver, stepper_motor_hor, interpolator_ir_sensor, interpolator_photoresistor
+            stepper_motor_ver,
+            stepper_motor_hor,
+            interpolator_ir_sensor,
+            interpolator_photoresistor,
         }
     }
 
@@ -93,12 +96,14 @@ impl<
         Pin2: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
     {
-        let ir_sensor_data_close1: u32 = 0; //TODO calibrate
-        let ir_sensor_data_close2: u32 = 0; //TODO calibrate
+        log::info!("Initiating motors position");
+
+        let ir_sensor_data_close1: u32 = 1500;
+        let ir_sensor_data_close2: u32 = 1500;
 
         // init stepper_motor_ver angle
-        while self.read_ir(adc)? < ir_sensor_data_close1
-        {
+        log::info!("Rotating vertical until IR sensor hits");
+        while self.read_ir(adc)? > ir_sensor_data_close1 {
             self.stepper_motor_ver.rotate_left(Low);
         }
         self.stepper_motor_ver.stop_motor();
@@ -106,12 +111,14 @@ impl<
 
         // init stepper_motor_hor angle
         //maybe use a second ir sensor
-        while self.read_ir(adc)? < ir_sensor_data_close2
-        {
+        log::info!("Rotating horizontal until IR sensor hits");
+        while self.read_ir(adc)? > ir_sensor_data_close2 {
             self.stepper_motor_hor.rotate_left(Low);
         }
         self.stepper_motor_hor.stop_motor();
         self.stepper_motor_hor.init_angle(false);
+
+        log::info!("Initiating motors finished");
         Ok(())
     }
 
@@ -155,9 +162,7 @@ impl<
         //2. line of the ⧖ shape
         let half_max_angle = self.stepper_motor_ver.max_angle() / 2;
         while self.stepper_motor_ver.rotatable_angle(half_max_angle) {
-            angle_ver = self
-                .stepper_motor_ver
-                .rotate_angle(Low, half_max_angle);
+            angle_ver = self.stepper_motor_ver.rotate_angle(Low, half_max_angle);
             photoresistor = self.read_photoresistor(adc)?;
 
             if best_position.photoresistor < photoresistor {
@@ -185,8 +190,7 @@ impl<
         }
         self.stepper_motor_hor.stop_motor();
 
-        
-        /* 
+        /*
         let refresh_best_position =
             |angle_ver, angle_hor| -> Result<BestPosition, LightTrackingError> {
                 photoresistor = self.read_photoresistor(adc)?;
@@ -201,7 +205,6 @@ impl<
                 }
             };
         */
-
 
         //4. line of the ⧖ shape
         while self.stepper_motor_ver.rotatable_right() {
@@ -250,7 +253,7 @@ impl<
             angle_ver: i32,
             angle_hor: i32,
             ver_border: bool,
-            hor_border: bool
+            hor_border: bool,
         }
 
         // search for the sun within a grid around the current position
@@ -258,7 +261,13 @@ impl<
         let border = 1; // TODO calibrate
         let mut angle_ver = self.stepper_motor_ver.current_angle();
         let mut angle_hor = self.stepper_motor_hor.current_angle();
-        let mut best_position = BestPosition {photoresistor: 0, angle_ver, angle_hor, ver_border: true, hor_border: true};
+        let mut best_position = BestPosition {
+            photoresistor: 0,
+            angle_ver,
+            angle_hor,
+            ver_border: true,
+            hor_border: true,
+        };
         let mut was_ver_border = false;
         let mut was_hor_border = false;
 
@@ -294,9 +303,7 @@ impl<
                     if m1 != 1 {
                         // depending on if we are on the left or on the right move in the opposite direction (vertically)
                         for _ in 1..=step_size {
-                            angle_ver = self
-                                .stepper_motor_ver
-                                .rotate_left_right(Low, rotate_left);
+                            angle_ver = self.stepper_motor_ver.rotate_left_right(Low, rotate_left);
                         }
                     }
 
@@ -320,7 +327,13 @@ impl<
                             (!hor_left_corner && m2 <= border)
                                 || (hor_left_corner && m2 > ver_gridsize - border)
                         };
-                        best_position = BestPosition { photoresistor, angle_ver, angle_hor, ver_border, hor_border };
+                        best_position = BestPosition {
+                            photoresistor,
+                            angle_ver,
+                            angle_hor,
+                            ver_border,
+                            hor_border,
+                        };
                     }
                 }
                 self.stepper_motor_ver.stop_motor();
@@ -331,16 +344,12 @@ impl<
                 {
                     self.stepper_motor_ver.rotate_angle_full(
                         High,
-                        (self.stepper_motor_ver.current_angle()
-                            - 18000)
-                            .abs(),
+                        (self.stepper_motor_ver.current_angle() - 18000).abs(),
                     );
                     self.stepper_motor_ver.stop_motor();
                     self.stepper_motor_hor.rotate_angle_full(
                         High,
-                        (self.stepper_motor_ver.current_angle()
-                            - 18000)
-                            .abs(),
+                        (self.stepper_motor_ver.current_angle() - 18000).abs(),
                     );
                     self.stepper_motor_hor.stop_motor();
                 }
@@ -482,7 +491,7 @@ impl<
         Ok(())
     }
 
-    fn read_ir<Adc, ADC> (&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError> 
+    fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -496,7 +505,7 @@ impl<
             .expect("Interpolation of infrared sensor failed"))
     }
 
-    fn read_photoresistor<Adc, ADC> (&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError> 
+    fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -509,5 +518,4 @@ impl<
             .map_err(|_| LightTrackingError::ADCFailed)?
             .expect("Interpolation of photoresistor sensor failed"))
     }
-
 }
