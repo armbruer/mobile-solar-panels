@@ -106,8 +106,8 @@ impl<
         {
             self.stepper_motor_ver.rotate_left(Low);
         }
-        self.stepper_motor_ver.init_angle(false);
         self.stepper_motor_ver.stop_motor();
+        self.stepper_motor_ver.init_angle(false);
 
         // init stepper_motor_hor angle
         //maybe use a second ir sensor
@@ -120,8 +120,8 @@ impl<
         {
             self.stepper_motor_hor.rotate_left(Low);
         }
-        self.stepper_motor_hor.init_angle(false);
         self.stepper_motor_hor.stop_motor();
+        self.stepper_motor_hor.init_angle(false);
         Ok(())
     }
 
@@ -167,6 +167,7 @@ impl<
                 };
             }
         }
+        self.stepper_motor_hor.stop_motor();
 
         //2. line of the ⧖ shape
         let half_max_angle = self.stepper_motor_ver.max_angle() / 2;
@@ -187,6 +188,7 @@ impl<
                 };
             }
         }
+        self.stepper_motor_ver.stop_motor();
 
         //3. line of the ⧖ shape
         while self.stepper_motor_hor.rotatable_left() {
@@ -204,6 +206,7 @@ impl<
                 };
             }
         }
+        self.stepper_motor_hor.stop_motor();
 
         /* 
         let refresh_best_position =
@@ -241,12 +244,15 @@ impl<
                 };
             }
         }
+        self.stepper_motor_ver.stop_motor();
 
         //move to best position
         self.stepper_motor_ver
             .rotate_angle_full(High, best_position.angle_ver);
+        self.stepper_motor_ver.stop_motor();
         self.stepper_motor_hor
             .rotate_angle_full(High, best_position.angle_hor);
+        self.stepper_motor_hor.stop_motor();
 
         Ok(())
     }
@@ -295,6 +301,7 @@ impl<
                         .stepper_motor_ver
                         .rotate_left_right(High, ver_left_corner);
                 }
+                self.stepper_motor_ver.stop_motor();
             }
             if hor_init {
                 let hor_offset = (hor_gridsize + 1) / 2;
@@ -303,6 +310,7 @@ impl<
                         .stepper_motor_hor
                         .rotate_left_right(High, hor_left_corner);
                 }
+                self.stepper_motor_hor.stop_motor();
             }
 
             //go through each position in the grid in wavy lines and check if one is better
@@ -348,6 +356,7 @@ impl<
                         best_position = BestPosition { photoresistor, angle_ver, angle_hor, ver_border, hor_border };
                     }
                 }
+                self.stepper_motor_ver.stop_motor();
 
                 //if we cannot move in one direction, rotate both motors by 180°
                 if (hor_left_corner && !self.stepper_motor_hor.rotatable_right())
@@ -359,23 +368,28 @@ impl<
                             - 18000)
                             .abs(),
                     );
+                    self.stepper_motor_ver.stop_motor();
                     self.stepper_motor_hor.rotate_angle_full(
                         High,
                         (self.stepper_motor_ver.current_angle()
                             - 18000)
                             .abs(),
                     );
+                    self.stepper_motor_hor.stop_motor();
                 }
                 angle_hor = self
                     .stepper_motor_hor
                     .rotate_left_right(Low, !hor_left_corner);
+                self.stepper_motor_hor.stop_motor();
             }
 
             //move to best position
             self.stepper_motor_ver
                 .rotate_angle_full(High, best_position.angle_ver);
+            self.stepper_motor_ver.stop_motor();
             self.stepper_motor_hor
                 .rotate_angle_full(High, best_position.angle_hor);
+            self.stepper_motor_hor.stop_motor();
 
             //stop if best position is not a border
             if !best_position.ver_border && !best_position.hor_border {
