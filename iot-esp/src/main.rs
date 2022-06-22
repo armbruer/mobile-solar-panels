@@ -250,5 +250,8 @@ fn send_sensor_data(
             .to_le_bytes(),
     );
 
-    conn.send(RequestType::Post, addr, "/sensor/data", payload);
+    match conn.request(RequestType::Post, addr, "/sensor/data", payload) {
+        Ok(_) => (),
+        Err(e) => log::error!("{:?}", e), // TODO: Store data that it doesn't get lost
+    }
 }
