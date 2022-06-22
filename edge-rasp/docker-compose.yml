@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    networks:
-      edge-solarpanels:
     restart: unless-stopped
     deploy:
       resources:
@@ -17,9 +15,6 @@ services:
       - broker
   broker:
     image: eclipse-mosquitto
-    networks:
-      edge-solarpanels:
-      ingress:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config:ro"
@@ -29,8 +24,3 @@ services:
         limits:
           cpus: '0.50'
           memory: 600M
-
-networks:
-  edge-solarpanels:
-  ingress:
-    external: true
