@@ -40,7 +40,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
         18000, //TODO calibrate
-        72,  // 0.72, 1.8   //TODO to be determined
+        72,    // 0.72, 1.8   //TODO to be determined
         0,
         false,
     );
@@ -51,7 +51,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
         18000, //TODO calibrate
-        72,  // 0.72, 1.8   //TODO to be determined
+        72,    // 0.72, 1.8   //TODO to be determined
         90,
         false,
     );
@@ -104,21 +104,22 @@ fn main() -> Result<(), EspError> {
         platform1.init_motors(&mut powered_adc);
         platform1.search_vague(&mut powered_adc);
         let gridsize = 7; //TODO calibrate
-        platform1.search_exact(
-            &mut powered_adc,
-            true,
-            true,
-            gridsize,
-            gridsize,
-            true,
-            true,
-            false,
-        ).unwrap();
+        platform1
+            .search_exact(
+                &mut powered_adc,
+                true,
+                true,
+                gridsize,
+                gridsize,
+                true,
+                true,
+                false,
+            )
+            .unwrap();
         platform1.follow_sun(&mut powered_adc, gridsize);
     }
-
     // Demo: Hardware measurements on serial port and motors turning
-    /* 
+    /*
     let demo_hardware_measurements = false;
     if demo_hardware_measurements {
         let thread_stepper_motor_ver = std::thread::spawn(move || {
@@ -168,21 +169,22 @@ fn main() -> Result<(), EspError> {
     let demo_coap = false;
     if demo_coap {
         // TODO hostname
-        let _wifi = networking::wifi::wifi(
-            netif_stack.clone(),
-            sys_loop_stack.clone(),
-            default_nvs.clone(),
-        )?;
+        let _wifi = networking::wifi::wifi(netif_stack, sys_loop_stack, default_nvs)?;
 
         let mut conn = Connection::new();
 
         loop {
             send_sensor_data(
                 &mut conn,
-                "10.42.0.1:5683",
-                &vec![1.0, 2.0, 3.0],
-                &vec![4, 5, 6],
-                &vec![7, 8, 9],
+                "10.0.100.1:5683",
+                &[
+                    std::time::SystemTime::now(),
+                    std::time::SystemTime::now(),
+                    std::time::SystemTime::now(),
+                ],
+                &[1.0, 2.0, 3.0],
+                &[4, 5, 6],
+                &[7, 8, 9],
             );
             log::info!("Sent a message");
             std::thread::sleep(Duration::from_secs(2));
@@ -195,26 +197,31 @@ fn main() -> Result<(), EspError> {
 fn send_sensor_data(
     conn: &mut Connection,
     addr: &str,
+    timestamp: &[std::time::SystemTime],
     temperature: &[f32],
     photoresistor: &[i32],
     infrared: &[i32],
 ) {
     let mut payload = vec![];
 
+    debug_assert_eq!(timestamp.len(), temperature.len());
     debug_assert_eq!(temperature.len(), photoresistor.len());
     debug_assert_eq!(photoresistor.len(), infrared.len());
 
-    payload.extend_from_slice(&(temperature.len() as u32).to_ne_bytes());
+    payload.extend_from_slice(&(temperature.len() as u32).to_le_bytes());
 
     // TODO prevent fragementation
-    for ((t, p), i) in temperature
+    for (((time, temp), photo), infra) in timestamp
         .iter()
+        .zip(temperature.iter())
         .zip(photoresistor.iter())
         .zip(infrared.iter())
     {
-        payload.extend_from_slice(&t.to_le_bytes());
-        payload.extend_from_slice(&p.to_le_bytes());
-        payload.extend_from_slice(&i.to_le_bytes());
+        let unix_time = time.duration_since(std::time::SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        payload.extend_from_slice(&unix_time.to_le_bytes());
+        payload.extend_from_slice(&temp.to_le_bytes());
+        payload.extend_from_slice(&photo.to_le_bytes());
+        payload.extend_from_slice(&infra.to_le_bytes());
     }
 
     conn.send(RequestType::Post, addr, "/sensor/data", payload);

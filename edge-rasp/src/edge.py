@@ -100,7 +100,8 @@ class SensorData(resource.Resource):
 
         length = int.from_bytes(payload[0:4], byteorder='little', signed=False)
 
-        all_fields_size = 4 * 3
+        # unix_time + 4 * 3 (temperature, photoresistor, ir sensor)
+        all_fields_size = 8 + 4 * 3
         expected_packet_size = length_size + all_fields_size * length
         if len(payload) != expected_packet_size:
             return aiocoap.Message(code=aiocoap.numbers.codes.Code.BAD_REQUEST,
@@ -110,13 +111,17 @@ class SensorData(resource.Resource):
 
         index = length_size
         while index < len(payload):
+            timestamp = int.from_bytes(payload[index:index:8], byteorder='little', signed=False)
+            timestamp = datetime.datetime.utcfromtimestamp(timestamp)
+            index += 8
             temperature = struct.unpack('<f', payload[index:index+4])
-            photoresistor = int.from_bytes(payload[index+4:index+8], byteorder='little', signed=True)
-            infrared = int.from_bytes(payload[index+8:index+12], byteorder='little', signed=True)
-            index += all_fields_size
+            index += 4
+            photoresistor = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
+            index += 4
+            infrared = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
+            index += 4
 
-            raise NotImplementedError("Missing timestamp design")
-            data_point = DataPoint(temperature=temperature, photoresistor=photoresistor, infrared=infrared)
+            data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor, infrared=infrared)
             data.append(data_point)
 
         logging.debug("Sending datapoints to message queue...")
@@ -139,7 +144,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
 async def generate_data(received_data_points: asyncio.Queue):
     while True:
-        dp = DataPoint(datetime.datetime.utcnow().astimezone(datetime.timezone.utc), 8651.1876, 588, 9911)
+        dp = DataPoint(datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc), 8651.1876, 588, 9911)
         await received_data_points.put([dp])
         logging.info("put some data")
         await asyncio.sleep(1)
