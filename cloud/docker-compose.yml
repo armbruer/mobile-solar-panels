@@ -4,7 +4,7 @@ services:
   solarpanels_db:
     image: postgres
     networks:
-      cloud-solarpanels:
+      default:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -22,7 +22,7 @@ services:
       context: .
       dockerfile: Dockerfile
     networks:
-      cloud-solarpanels:
+      default:
     restart: unless-stopped
     depends_on:
       - "solarpanels_db"
@@ -33,9 +33,10 @@ services:
           memory: 600M
   cbroker:
     image: eclipse-mosquitto
+    ports:
+      - 1883:1883
     networks:
-      cloud-solarpanels:
-      ingress:
+      default:
     volumes:
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/data:/mosquitto/data"
       - "${PERSISTENT_DB_PATH:-.}/mosquitto/config:/mosquitto/config:ro"
@@ -53,7 +54,7 @@ services:
       default:
       ingress:
         aliases:
-          - web-grafana
+          - edge-iot-grafana
     volumes:
       - grafana:/var/lib/grafana
     environment:
