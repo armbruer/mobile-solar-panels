@@ -7,7 +7,7 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug)]
 pub enum Speed {
     // max: 16000
-    Low = 16000,
+    Low = 10000,
     High = 1000,
     __Stop = 0, // Internal only
 }

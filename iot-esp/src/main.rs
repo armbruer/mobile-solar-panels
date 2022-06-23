@@ -9,7 +9,7 @@ use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
 use control::lighttracking::Platform;
 use esp_idf_hal::adc;
-use esp_idf_hal::gpio::{Gpio34, Gpio35};
+use esp_idf_hal::gpio::{Gpio32, Gpio34, Gpio35};
 use esp_idf_hal::prelude::Peripherals;
 
 use esp_idf_svc::netif::EspNetifStack;
@@ -78,12 +78,25 @@ fn main() -> Result<(), EspError> {
         ],
     };
 
+    let config_button_sensor = adc_interpolator::Config {
+        max_voltage: 3300, // 3300 mV maximum voltage
+        precision: 12,     // 12-bit precision
+        voltage_to_values: [
+            (100, 100), // Above 3000 mV and below 200 mV is likely invalid
+            (2000, 2000),
+            (3500, 3500),
+        ],
+    };
+
     let pin_photoresistor = pins.gpio34.into_analog_atten_11db()?;
     let pin_ir_sensor = pins.gpio35.into_analog_atten_11db()?;
+    let pin_button_sensor = pins.gpio32.into_analog_atten_11db()?;
     let mut interpolator_photoresistor: AdcInterpolator<Gpio34<adc::Atten11dB<adc::ADC1>>, u16, 3> =
         AdcInterpolator::new(pin_photoresistor, config_photoresistor);
     let mut interpolator_ir_sensor_1: AdcInterpolator<Gpio35<adc::Atten11dB<adc::ADC1>>, u16, 3> =
         AdcInterpolator::new(pin_ir_sensor, config_ir_sensor);
+    let mut interpolator_button_sensor: AdcInterpolator<Gpio32<adc::Atten11dB<adc::ADC1>>, u16, 3> =
+        AdcInterpolator::new(pin_button_sensor, config_button_sensor);
 
     let mut powered_adc = adc::PoweredAdc::new(
         peripherals.adc1,
@@ -98,10 +111,21 @@ fn main() -> Result<(), EspError> {
             stepper_motor_hor,
             interpolator_ir_sensor_1,
             interpolator_photoresistor,
+            interpolator_button_sensor,
         );
 
+        // For now the initial position at angle 0 is assumed
         // platform1.init_motors(&mut powered_adc);
-        platform1.search_vague(&mut powered_adc);
+
+        platform1.find_best_position(&mut powered_adc).unwrap();
+
+        log::info!("Waiting for button press to terminate");
+        while !platform1.reset_if_button_pressed(&mut powered_adc) {
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        return Ok(());
+
         let gridsize = 7; //TODO calibrate
         platform1
             .search_exact(
@@ -115,7 +139,7 @@ fn main() -> Result<(), EspError> {
                 false,
             )
             .unwrap();
-        platform1.follow_sun(&mut powered_adc, gridsize);
+        platform1.follow_light(&mut powered_adc, gridsize);
     }
     // Demo: Hardware measurements on serial port and motors turning
     /*

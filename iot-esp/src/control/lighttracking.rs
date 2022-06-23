@@ -25,12 +25,14 @@ pub struct Platform<
     Word,
     Pin1,
     Pin2,
+    Pin3,
     const LENGTH: usize,
 > {
     stepper_motor_ver: StepperMotor<Motor1Pin1, Motor1Pin2, Motor1Pin3, Motor1Pin4>,
     stepper_motor_hor: StepperMotor<Motor2Pin1, Motor2Pin2, Motor2Pin3, Motor2Pin4>,
     interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
     interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
+    interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
 }
 
 impl<
@@ -45,6 +47,7 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1,
         Pin2,
+        Pin3,
         const LENGTH: usize,
     >
     Platform<
@@ -59,6 +62,7 @@ impl<
         Word,
         Pin1,
         Pin2,
+        Pin3,
         LENGTH,
     >
 {
@@ -67,6 +71,7 @@ impl<
         stepper_motor_hor: StepperMotor<Motor2Pin1, Motor2Pin2, Motor2Pin3, Motor2Pin4>,
         interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
         interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
+        interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
     ) -> Platform<
         Motor1Pin1,
         Motor1Pin2,
@@ -79,6 +84,7 @@ impl<
         Word,
         Pin1,
         Pin2,
+        Pin3,
         LENGTH,
     > {
         Platform {
@@ -86,6 +92,37 @@ impl<
             stepper_motor_hor,
             interpolator_ir_sensor,
             interpolator_photoresistor,
+            interpolator_button,
+        }
+    }
+
+    pub fn reset_motors_position(&mut self) {
+        self.stepper_motor_hor.rotate_to_angle(High, 0);
+        self.stepper_motor_hor.stop_motor();
+        self.stepper_motor_ver.rotate_to_angle(High, 0);
+        self.stepper_motor_ver.step_size();
+    }
+
+    pub fn reset_if_button_pressed<Adc, ADC>(&mut self, adc: &mut Adc) -> bool
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
+    {
+        let value = self
+            .interpolator_button
+            .read(adc)
+            .map_err(|_| LightTrackingError::ADCFailed)
+            .unwrap()
+            .expect("Interpolation of infrared sensor failed");
+
+        if value < 1500 {
+            self.reset_motors_position();
+            true
+        } else {
+            false
         }
     }
 
@@ -124,7 +161,8 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
         log::info!("Initiating motors position");
 
@@ -152,113 +190,49 @@ impl<
         Ok(())
     }
 
-    pub fn search_vague<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    pub fn find_best_position<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
-        struct BestPosition {
-            photoresistor: u32,
-            angle_ver: i32,
-            angle_hor: i32,
-        }
-        //search for the sun by moving the motors in an ⧖ shape
-        let mut angle_ver = self.stepper_motor_ver.current_angle();
-        let mut angle_hor = self.stepper_motor_hor.current_angle();
-        let mut photoresistor = self.read_photoresistor(adc)?;
-        let mut best_position = BestPosition {
-            photoresistor,
-            angle_ver,
-            angle_hor,
-        };
+        //search for the sun by moving the motors
+        let mut best_photoresistor = self.read_photoresistor(adc)?;
+        let mut best_angle_hor = self.stepper_motor_hor.current_angle();
+        let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
-        //1. line of the ⧖ shape
-        while self.stepper_motor_hor.rotatable_right() {
-            angle_hor = self.stepper_motor_hor.rotate_right(Low);
-            photoresistor = self.read_photoresistor(adc)?;
+        while self.stepper_motor_hor.rotatable_left() {
+            let angle_hor = self.stepper_motor_hor.rotate_left(Low);
+            let photoresistor = self.read_photoresistor(adc)?;
 
-            if best_position.photoresistor < photoresistor {
-                best_position = BestPosition {
-                    photoresistor,
-                    angle_ver,
-                    angle_hor,
-                };
+            if best_photoresistor > photoresistor {
+                best_photoresistor = photoresistor;
+                best_angle_hor = angle_hor;
             }
         }
+        log::info!("Found best horizontal light at {}", best_angle_hor);
+        // Move to best horizontal position
+        self.stepper_motor_hor.rotate_to_angle(High, best_angle_hor);
         self.stepper_motor_hor.stop_motor();
 
-        //2. line of the ⧖ shape
         let half_max_angle = self.stepper_motor_ver.max_angle() / 2;
         while self.stepper_motor_ver.rotatable_to_angle(half_max_angle) {
-            angle_ver = self
+            let angle_ver = self
                 .stepper_motor_ver
                 .rotate_single_step_to_angle(Low, half_max_angle);
-            photoresistor = self.read_photoresistor(adc)?;
+            let photoresistor = self.read_photoresistor(adc)?;
 
-            if best_position.photoresistor < photoresistor {
-                best_position = BestPosition {
-                    photoresistor,
-                    angle_ver,
-                    angle_hor,
-                };
+            if best_photoresistor > photoresistor {
+                best_photoresistor = photoresistor;
+                best_angle_ver = angle_ver;
             }
         }
+        log::info!("Found best vertical light at {}", best_angle_ver);
+        // Move to best vertical position
+        self.stepper_motor_ver.rotate_to_angle(High, best_angle_ver);
         self.stepper_motor_ver.stop_motor();
-
-        //3. line of the ⧖ shape
-        while self.stepper_motor_hor.rotatable_left() {
-            angle_hor = self.stepper_motor_hor.rotate_left(Low);
-            photoresistor = self.read_photoresistor(adc)?;
-
-            if best_position.photoresistor < photoresistor {
-                best_position = BestPosition {
-                    photoresistor,
-                    angle_ver,
-                    angle_hor,
-                };
-            }
-        }
-        self.stepper_motor_hor.stop_motor();
-
-        /*
-        let refresh_best_position =
-            |angle_ver, angle_hor| -> Result<BestPosition, LightTrackingError> {
-                photoresistor = self.read_photoresistor(adc)?;
-                if best_position.photoresistor < photoresistor {
-                    Ok(BestPosition {
-                        photoresistor,
-                        angle_ver,
-                        angle_hor,
-                    })
-                } else {
-                    Ok(best_position)
-                }
-            };
-        */
-
-        //4. line of the ⧖ shape
-        while self.stepper_motor_ver.rotatable_right() {
-            angle_ver = self.stepper_motor_ver.rotate_right(Low);
-            photoresistor = self.read_photoresistor(adc)?;
-            if best_position.photoresistor < photoresistor {
-                best_position = BestPosition {
-                    photoresistor,
-                    angle_ver,
-                    angle_hor,
-                };
-            }
-        }
-        self.stepper_motor_ver.stop_motor();
-
-        //move to best position
-        self.stepper_motor_ver
-            .rotate_to_angle(High, best_position.angle_ver);
-        self.stepper_motor_ver.stop_motor();
-        self.stepper_motor_hor
-            .rotate_to_angle(High, best_position.angle_hor);
-        self.stepper_motor_hor.stop_motor();
 
         Ok(())
     }
@@ -278,7 +252,8 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
         struct BestPosition {
             photoresistor: u32,
@@ -417,7 +392,7 @@ impl<
         ))
     }
 
-    pub fn follow_sun<ADC, Adc>(
+    pub fn follow_light<ADC, Adc>(
         &mut self,
         adc: &mut Adc,
         gridsize: i32,
@@ -426,7 +401,8 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
         let mut ver_gridsize = gridsize;
         let mut hor_gridsize = gridsize;
@@ -528,7 +504,8 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
         Ok(self
             .interpolator_ir_sensor
@@ -542,7 +519,8 @@ impl<
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
         Pin2: Channel<ADC>,
-        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
         Ok(self
             .interpolator_photoresistor
