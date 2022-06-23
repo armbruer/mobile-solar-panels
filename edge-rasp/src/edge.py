@@ -166,7 +166,6 @@ async def generate_data(received_data_points: asyncio.Queue):
 async def main(conf: Config):
     received_data_points = asyncio.Queue()
 
-    logging.info("Connecting to MQTT broker")
     # Resource tree creation
     root = resource.Site()
 
@@ -175,9 +174,11 @@ async def main(conf: Config):
     root.add_resource(['time'], TimeResource())
     root.add_resource(['sensor', 'data'], SensorData(received_data_points))
 
+    logging.info("Creating CoAP server context")
     await aiocoap.Context.create_server_context(root)
 
     try:
+        logging.info("Connecting to MQTT broker")
         async with Client(conf.broker.host, conf.broker.port, client_id=conf.broker.client_id) as client:
             logging.info("Connected to MQTT broker")
             await asyncio.gather(asyncio.get_running_loop().create_future(), worker(client, received_data_points))
