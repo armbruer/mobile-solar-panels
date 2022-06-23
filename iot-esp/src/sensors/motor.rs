@@ -8,6 +8,9 @@ use std::time::Duration;
 pub enum Speed {
     // max: 16000
     Low = 10000,
+    LowMedium = 8000,
+    Medium = 5000,
+    HighMedium = 2000,
     High = 1000,
     __Stop = 0, // Internal only
 }
@@ -89,10 +92,11 @@ impl<
         self.rotatable_to_angle(self.max_angle)
     }
 
-    pub fn rotate_to_angle(&mut self, motor_speed: Speed, angle: i32) {
+    pub fn rotate_to_angle(&mut self, motor_speed: Speed, angle: i32) -> i32 {
         while self.rotatable_to_angle(angle) {
             self.rotate_single_step_to_angle(motor_speed, angle);
         }
+        angle
     }
 
     pub fn rotate_single_step_to_angle(&mut self, motor_speed: Speed, angle: i32) -> i32 {

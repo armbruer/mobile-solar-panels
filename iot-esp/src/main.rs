@@ -117,29 +117,12 @@ fn main() -> Result<(), EspError> {
         // For now the initial position at angle 0 is assumed
         // platform1.init_motors(&mut powered_adc);
 
-        platform1.find_best_position(&mut powered_adc).unwrap();
+        platform1.follow_light(&mut powered_adc);
 
         log::info!("Waiting for button press to terminate");
         while !platform1.reset_if_button_pressed(&mut powered_adc) {
             std::thread::sleep(Duration::from_millis(100));
         }
-
-        return Ok(());
-
-        let gridsize = 7; //TODO calibrate
-        platform1
-            .search_exact(
-                &mut powered_adc,
-                true,
-                true,
-                gridsize,
-                gridsize,
-                true,
-                true,
-                false,
-            )
-            .unwrap();
-        platform1.follow_light(&mut powered_adc, gridsize);
     }
     // Demo: Hardware measurements on serial port and motors turning
     /*
