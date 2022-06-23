@@ -45,6 +45,37 @@ services:
         limits:
           cpus: '0.50'
           memory: 600M
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    networks:
+      default:
+      ingress:
+        aliases:
+          - web-grafana
+    volumes:
+      - grafana:/var/lib/grafana
+    environment:
+      - 'GF_SERVER_ROOT_URL=%(protocol)s://%(domain)s/grafana/'
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
+
+      # Anonymous access
+      #- GF_AUTH_ANONYMOUS_ENABLED=true
+      #- 'GF_AUTH_ANONYMOUS_ORG_NAME=Main Org.'
+      #- GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+
+      - GF_PANELS_DISABLE_SANITIZE_HTML=true
+      - GF_INSTALL_PLUGINS=aceiot-svg-panel,aidanmountford-html-panel
+
+      # Login with Authelia forwarded usernames
+      - GF_AUTH_PROXY_ENABLED=true
+      - GF_AUTH_PROXY_HEADER_NAME=Remote-User
+      - GF_AUTH_PROXY_HEADER_PROPERTY=username
+      - GF_AUTH_PROXY_HEADERS=Role:Remote-User-Role  # Pass the user role in 'Remote-User-Role'
+      #- GF_AUTH_PROXY_AUTO_SIGN_UP=false  # Do not sign up users who do not exist in Grafana
+      - GF_AUTH_PROXY_AUTO_SIGN_UP=true  # Do not sign up users who do not exist in Grafana
+
   pgadmin:
     image: dpage/pgadmin4
     networks:
