@@ -99,9 +99,6 @@ impl<
         if !self.rotatable_to_angle(angle) {
             return self.current_angle;
         }
-        if angle == self.current_angle {
-            return self.current_angle;
-        }
         if self.current_angle > angle {
             self.rotate_right(motor_speed)
         } else {
