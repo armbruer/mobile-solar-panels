@@ -89,6 +89,36 @@ impl<
         }
     }
 
+    pub fn test_movement(&mut self) {
+        let mut current_angle = 0;
+
+        let test_horizontal = false;
+        if test_horizontal {
+            for _ in 0..1000 {
+                current_angle = self.stepper_motor_hor.rotate_left(Low);
+            }
+            log::info!("Rotate horizontal left stopped at angle {}", current_angle);
+            for _ in 0..1000 {
+                current_angle = self.stepper_motor_hor.rotate_right(Low);
+            }
+            log::info!("Rotate horizontal right stopped at angle {}", current_angle);
+            self.stepper_motor_hor.stop_motor();
+        }
+
+        let test_vertical = true;
+        if test_vertical {
+            for _ in 0..1000 {
+                current_angle = self.stepper_motor_ver.rotate_left(Low);
+            }
+            log::info!("Rotate vertical left stopped at angle {}", current_angle);
+            for _ in 0..1000 {
+                current_angle = self.stepper_motor_ver.rotate_right(Low);
+            }
+            log::info!("Rotate vertical right stopped at angle {}", current_angle);
+            self.stepper_motor_ver.stop_motor();
+        }
+    }
+
     pub fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
@@ -107,7 +137,7 @@ impl<
             self.stepper_motor_ver.rotate_left(Low);
         }
         self.stepper_motor_ver.stop_motor();
-        self.stepper_motor_ver.init_angle(false);
+        self.stepper_motor_ver.init_angle();
 
         // init stepper_motor_hor angle
         //maybe use a second ir sensor
@@ -116,7 +146,7 @@ impl<
             self.stepper_motor_hor.rotate_left(Low);
         }
         self.stepper_motor_hor.stop_motor();
-        self.stepper_motor_hor.init_angle(false);
+        self.stepper_motor_hor.init_angle();
 
         log::info!("Initiating motors finished");
         Ok(())
@@ -161,8 +191,10 @@ impl<
 
         //2. line of the ⧖ shape
         let half_max_angle = self.stepper_motor_ver.max_angle() / 2;
-        while self.stepper_motor_ver.rotatable_angle(half_max_angle) {
-            angle_ver = self.stepper_motor_ver.rotate_angle(Low, half_max_angle);
+        while self.stepper_motor_ver.rotatable_to_angle(half_max_angle) {
+            angle_ver = self
+                .stepper_motor_ver
+                .rotate_single_step_to_angle(Low, half_max_angle);
             photoresistor = self.read_photoresistor(adc)?;
 
             if best_position.photoresistor < photoresistor {
@@ -222,10 +254,10 @@ impl<
 
         //move to best position
         self.stepper_motor_ver
-            .rotate_angle_full(High, best_position.angle_ver);
+            .rotate_to_angle(High, best_position.angle_ver);
         self.stepper_motor_ver.stop_motor();
         self.stepper_motor_hor
-            .rotate_angle_full(High, best_position.angle_hor);
+            .rotate_to_angle(High, best_position.angle_hor);
         self.stepper_motor_hor.stop_motor();
 
         Ok(())
@@ -342,12 +374,12 @@ impl<
                 if (hor_left_corner && !self.stepper_motor_hor.rotatable_right())
                     || (!hor_left_corner && !self.stepper_motor_hor.rotatable_left())
                 {
-                    self.stepper_motor_ver.rotate_angle_full(
+                    self.stepper_motor_ver.rotate_to_angle(
                         High,
                         (self.stepper_motor_ver.current_angle() - 18000).abs(),
                     );
                     self.stepper_motor_ver.stop_motor();
-                    self.stepper_motor_hor.rotate_angle_full(
+                    self.stepper_motor_hor.rotate_to_angle(
                         High,
                         (self.stepper_motor_ver.current_angle() - 18000).abs(),
                     );
@@ -361,10 +393,10 @@ impl<
 
             //move to best position
             self.stepper_motor_ver
-                .rotate_angle_full(High, best_position.angle_ver);
+                .rotate_to_angle(High, best_position.angle_ver);
             self.stepper_motor_ver.stop_motor();
             self.stepper_motor_hor
-                .rotate_angle_full(High, best_position.angle_hor);
+                .rotate_to_angle(High, best_position.angle_hor);
             self.stepper_motor_hor.stop_motor();
 
             //stop if best position is not a border

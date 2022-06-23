@@ -2,8 +2,8 @@ use embedded_svc::{
     ipv4,
     ping::Ping,
     wifi::{
-        AccessPointConfiguration, ApIpStatus, ApStatus, ClientConfiguration,
-        ClientConnectionStatus, ClientIpStatus, ClientStatus, Configuration, Status, Wifi,
+        ApStatus, ClientConfiguration, ClientConnectionStatus, ClientIpStatus, ClientStatus,
+        Configuration, Status, Wifi,
     },
 };
 use esp_idf_sys::EspError;
@@ -16,7 +16,6 @@ use esp_idf_svc::sysloop::EspSysLoopStack;
 use esp_idf_svc::wifi::EspWifi;
 
 use std::sync::Arc;
-use std::time::Duration;
 
 const SSID: &str = "edge-iot";
 const PASS: &str = "EEtjQjV9N91mXo1OYm44";

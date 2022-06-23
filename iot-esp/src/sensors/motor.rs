@@ -1,5 +1,5 @@
-use embedded_hal::digital::v2::PinState;
 use embedded_hal::digital::v2::OutputPin;
+use embedded_hal::digital::v2::PinState;
 
 use std::thread;
 use std::time::Duration;
@@ -7,17 +7,12 @@ use std::time::Duration;
 #[derive(Clone, Copy, Debug)]
 pub enum Speed {
     // max: 16000
-    Low = 10000,
+    Low = 16000,
     High = 1000,
     __Stop = 0, // Internal only
 }
 
-pub struct StepperMotor<
-    OutputPin1,
-    OutputPin2,
-    OutputPin3,
-    OutputPin4,
-> {
+pub struct StepperMotor<OutputPin1, OutputPin2, OutputPin3, OutputPin4> {
     pin1: OutputPin1,
     pin2: OutputPin2,
     pin3: OutputPin3,
@@ -52,8 +47,8 @@ impl<
             pin4,
             max_angle,
             step_size,
-            current_angle: 0,
-            initalized_angles: false,
+            current_angle,
+            initalized_angles,
         }
     }
 
@@ -69,16 +64,14 @@ impl<
         self.current_angle
     }
 
-    pub fn init_angle(&mut self, ismax_angle: bool) {
-        self.current_angle = if ismax_angle { self.max_angle } else { 0 };
+    /// Motor is in initial position at angle 0
+    pub fn init_angle(&mut self) {
+        self.current_angle = 0;
         self.initalized_angles = true;
     }
 
-    pub fn rotatable_angle(&mut self, angle: i32) -> bool {
-        if self.current_angle == angle
-            || angle < 0
-            || angle > self.max_angle
-        {
+    pub fn rotatable_to_angle(&mut self, angle: i32) -> bool {
+        if angle < 0 || angle > self.max_angle {
             return false;
         }
         if self.current_angle < angle {
@@ -89,30 +82,34 @@ impl<
     }
 
     pub fn rotatable_right(&mut self) -> bool {
-        self.rotatable_angle(self.max_angle)
+        self.rotatable_to_angle(0)
     }
 
     pub fn rotatable_left(&mut self) -> bool {
-        self.rotatable_angle(0)
+        self.rotatable_to_angle(self.max_angle)
     }
 
-    pub fn rotate_angle_full(&mut self, motor_speed: Speed, angle: i32) {
-        while self.rotatable_angle(angle) {
-            self.rotate_angle(motor_speed, angle);
+    pub fn rotate_to_angle(&mut self, motor_speed: Speed, angle: i32) {
+        while self.rotatable_to_angle(angle) {
+            self.rotate_single_step_to_angle(motor_speed, angle);
         }
     }
 
-    pub fn rotate_angle(&mut self, motor_speed: Speed, angle: i32) -> i32 {
-        if !self.rotatable_angle(angle) {
+    pub fn rotate_single_step_to_angle(&mut self, motor_speed: Speed, angle: i32) -> i32 {
+        if !self.rotatable_to_angle(angle) {
             return self.current_angle;
         }
-        if self.current_angle < angle {
+        if angle == self.current_angle {
+            return self.current_angle;
+        }
+        if self.current_angle > angle {
             self.rotate_right(motor_speed)
         } else {
             self.rotate_left(motor_speed)
         }
     }
 
+    #[inline]
     pub fn rotate_left_right(&mut self, motor_speed: Speed, left: bool) -> i32 {
         if left {
             self.rotate_left(motor_speed)
@@ -183,7 +180,7 @@ impl<
             motor_speed,
         );
         if self.initalized_angles {
-            self.current_angle += self.step_size;
+            self.current_angle -= self.step_size;
         }
         self.current_angle
     }
@@ -250,7 +247,7 @@ impl<
             motor_speed,
         );
         if self.initalized_angles {
-            self.current_angle -= self.step_size;
+            self.current_angle += self.step_size;
         }
         self.current_angle
     }

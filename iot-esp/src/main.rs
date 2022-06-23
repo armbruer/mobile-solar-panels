@@ -34,26 +34,28 @@ fn main() -> Result<(), EspError> {
     let mut i2c_sensors =
         sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, false)?;
 
-    let mut stepper_motor_ver = StepperMotor::new(
+    // 480 steps = 360°
+    let stepper_motor_ver = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        18000, //TODO calibrate
-        72,    // 0.72, 1.8   //TODO to be determined
+        480 / 3, // TODO calibrate
+        1,       // TODO to be determined
         0,
-        false,
+        true,
     );
 
-    let mut stepper_motor_hor = StepperMotor::new(
+    // 480 steps = 360°
+    let stepper_motor_hor = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        18000, //TODO calibrate
-        72,    // 0.72, 1.8   //TODO to be determined
-        90,
-        false,
+        480, // TODO calibrate
+        1,   // TODO to be determined
+        0,
+        true,
     );
 
     let config_photoresistor = adc_interpolator::Config {
@@ -89,7 +91,7 @@ fn main() -> Result<(), EspError> {
     )?;
 
     // Main motor algorithm
-    let motor_control = false;
+    let motor_control = true;
     if motor_control {
         let mut platform1 = Platform::new(
             stepper_motor_ver,
@@ -97,7 +99,8 @@ fn main() -> Result<(), EspError> {
             interpolator_ir_sensor_1,
             interpolator_photoresistor,
         );
-        platform1.init_motors(&mut powered_adc);
+
+        // platform1.init_motors(&mut powered_adc);
         platform1.search_vague(&mut powered_adc);
         let gridsize = 7; //TODO calibrate
         platform1
@@ -186,8 +189,7 @@ fn main() -> Result<(), EspError> {
                 &[4, 5, 6],
                 &[7, 8, 9],
             );
-            log::info!("Sent a message");
-            std::thread::sleep(Duration::from_secs(2));
+            std::thread::sleep(Duration::from_secs(10));
         }
     }
 
