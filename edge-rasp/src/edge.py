@@ -125,7 +125,7 @@ class SensorData(resource.Resource):
             timestamp = edge_current_time - time_passed
             index += 8
 
-            temperature = struct.unpack('<f', payload[index:index+4])
+            temperature = struct.unpack('<f', payload[index:index+4])[0]
             index += 4
             photoresistor = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
             index += 4
@@ -140,15 +140,17 @@ class SensorData(resource.Resource):
         logging.debug("Sending datapoints to message queue...")
         await self.received_data_points.put(data)
 
-        return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=b"")
+        return aiocoap.Message(mtype=aiocoap.numbers.types.Type.CON, code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
 
 
 async def worker(client: Client, received_data_points: asyncio.Queue):
+    logging.debug("Started worker loop")
     while True:
         datapoints: List[DataPoint] = await received_data_points.get()
         message = ';'.join(map(str, datapoints))
 
         try:
+            logging.debug("Publishing sensor data")
             await client.publish("sensors", payload=message.encode())
         except MqttError as ex:
             logging.error(ex)
