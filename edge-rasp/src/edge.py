@@ -2,7 +2,6 @@ import datetime
 import logging
 
 import asyncio
-import time
 
 import toml
 from typing import List
@@ -118,7 +117,7 @@ class SensorData(resource.Resource):
 
         index = length_size + client_current_time_size
         while index < len(payload):
-            timestamp = int.from_bytes(payload[index:index:8], byteorder='little', signed=False)
+            timestamp = int.from_bytes(payload[index:index+8], byteorder='little', signed=False)
             timestamp = datetime.datetime.utcfromtimestamp(timestamp)
             # Time that passed since this datapoint was generated
             time_passed = client_current_time - timestamp
@@ -140,7 +139,7 @@ class SensorData(resource.Resource):
         logging.debug("Sending datapoints to message queue...")
         await self.received_data_points.put(data)
 
-        return aiocoap.Message(mtype=aiocoap.numbers.types.Type.CON, code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
+        return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
 
 
 async def worker(client: Client, received_data_points: asyncio.Queue):
