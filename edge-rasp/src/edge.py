@@ -64,12 +64,18 @@ class DataPoint:
     temperature: float
     photoresistor: int
     infrared: int
+    voltage: int
+    current: int
+    power: int
 
-    def __init__(self, timestamp, temperature, photoresistor, infrared):
+    def __init__(self, timestamp, temperature, photoresistor, infrared, voltage, current, power):
         self.timestamp = timestamp
         self.temperature = temperature
         self.photoresistor = photoresistor
         self.infrared = infrared
+        self.voltage = voltage
+        self.current = current
+        self.power = power
 
     def __str__(self):
         return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " " + str(self.infrared)
@@ -101,8 +107,8 @@ class SensorData(resource.Resource):
 
         length = int.from_bytes(payload[0:4], byteorder='little', signed=False)
 
-        # timestamp + 4 * 3 (temperature, photoresistor, ir sensor)
-        all_fields_size = 8 + 4 * 3
+        # timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
+        all_fields_size = 8 + 4 * 6
         client_current_time_size = 8
 
         expected_packet_size = length_size + client_current_time_size + all_fields_size * length
@@ -130,8 +136,15 @@ class SensorData(resource.Resource):
             index += 4
             infrared = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
             index += 4
+            voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            index += 4
+            current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            index += 4
+            power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            index += 4
 
-            data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor, infrared=infrared)
+            data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
+                                   infrared=infrared, voltage=voltage, current=current, power=power)
             data.append(data_point)
 
         assert index == len(payload)

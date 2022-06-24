@@ -33,6 +33,9 @@ pub struct Platform<
     interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
     interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
     interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
+
+    last_angle_hor: i32,
+    last_angle_ver: i32,
 }
 
 impl<
@@ -93,6 +96,8 @@ impl<
             interpolator_ir_sensor,
             interpolator_photoresistor,
             interpolator_button,
+            last_angle_hor: 0,
+            last_angle_ver: 0,
         }
     }
 
@@ -295,7 +300,7 @@ impl<
         Ok(())
     }
 
-    pub fn follow_light<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    pub fn follow_light<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -303,45 +308,34 @@ impl<
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
-        self.find_best_position(adc)?;
+        self.search_scope(adc, Low, 80, 40)?;
 
-        let mut last_angle_hor = self.stepper_motor_hor.current_angle();
-        let mut last_angle_ver = self.stepper_motor_ver.current_angle();
+        let new_angle_hor = self.stepper_motor_hor.current_angle();
+        let new_angle_ver = self.stepper_motor_ver.current_angle();
 
-        'outer: loop {
-            self.search_scope(adc, Low, 80, 40)?;
+        let sleep_time_hor = if new_angle_hor.abs_diff(self.last_angle_hor) > 30 {
+            2
+        } else if new_angle_hor.abs_diff(self.last_angle_hor) > 2 {
+            5
+        } else {
+            15
+        };
 
-            let new_angle_hor = self.stepper_motor_hor.current_angle();
-            let new_angle_ver = self.stepper_motor_ver.current_angle();
+        let sleep_time_ver = if new_angle_ver.abs_diff(self.last_angle_ver) > 15 {
+            2
+        } else if new_angle_ver.abs_diff(self.last_angle_ver) > 2 {
+            5
+        } else {
+            15
+        };
 
-            let sleep_time_hor = if new_angle_hor.abs_diff(last_angle_hor) > 30 {
-                2
-            } else if new_angle_hor.abs_diff(last_angle_hor) > 2 {
-                5
-            } else {
-                15
-            };
+        self.last_angle_hor = new_angle_hor;
+        self.last_angle_ver = new_angle_ver;
 
-            let sleep_time_ver = if new_angle_ver.abs_diff(last_angle_ver) > 15 {
-                2
-            } else if new_angle_ver.abs_diff(last_angle_ver) > 2 {
-                5
-            } else {
-                15
-            };
-
-            for _ in 0..sleep_time_hor.max(sleep_time_ver) * 10 {
-                if self.reset_if_button_pressed(adc) {
-                    break 'outer;
-                }
-                std::thread::sleep(Duration::from_millis(100));
-            }
-        }
-
-        Ok(())
+        Ok(sleep_time_hor.max(sleep_time_ver))
     }
 
-    fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    pub fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -356,7 +350,7 @@ impl<
             .expect("Interpolation of infrared sensor failed"))
     }
 
-    fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    pub fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,

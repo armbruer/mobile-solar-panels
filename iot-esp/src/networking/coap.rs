@@ -81,9 +81,6 @@ impl Connection {
         req: CoapRequest<SocketAddr>,
         addr: SocketAddr,
     ) -> Result<CoapResponse, CoapError> {
-        let mut recvd_ack = false;
-        let mut recvd_response = false;
-
         loop {
             log::info!("Waiting for packet");
             let res = self.recv(addr)?;
@@ -91,18 +88,13 @@ impl Connection {
 
             if res.message.header.get_type() == MessageType::Acknowledgement
                 && res.message.header.message_id == req.message.header.message_id
+                && res.message.get_token() == req.message.get_token()
             {
-                recvd_ack = true;
-                log::info!("Received ack: {:#?}", res.message.header.message_id);
-            }
-
-            // TODO handle case: acknowledge missing, but response received
-            if res.message.get_token() == req.message.get_token()
-                && res.message.header.get_type() == MessageType::Confirmable
-            {
-                self.send_ack(&res, addr);
-                recvd_response = true;
-                log::info!("Received reponse: {:#?}", &res);
+                log::info!(
+                    "Received ack: {}, Payload: {}",
+                    res.message.header.message_id,
+                    std::str::from_utf8(&res.message.payload).unwrap()
+                );
                 return Ok(res);
             }
         }

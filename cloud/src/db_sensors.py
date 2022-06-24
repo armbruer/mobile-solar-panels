@@ -10,12 +10,15 @@ CREATE TABLE IF NOT EXISTS sensor (
     temperature REAL NULL,
     photoresistor INTEGER NULL,
     infrared INTEGER NULL,
+    voltage INTEGER NULL,
+    current INTEGER NULL,
+    power INTEGER NULL,
     PRIMARY KEY ("time")
 );
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, temperature, photoresistor, infrared) VALUES ($1, $2, $3, $4)
+INSERT INTO sensor (time, temperature, photoresistor, infrared) VALUES ($1, $2, $3, $4, $5, $6, $7)
 """
 
 
@@ -35,19 +38,25 @@ class DataPoint:
     temperature: float
     photoresistor: int
     infrared: int
+    voltage: int
+    current: int
+    power: int
 
-    def __init__(self, timestamp, temperature, photoresistor, infrared, **data: Any):
+    def __init__(self, timestamp, temperature, photoresistor, infrared, voltage, current, power, **data: Any):
         super().__init__(**data)
         self.timestamp = timestamp
         self.temperature = temperature
         self.photoresistor = photoresistor
         self.infrared = infrared
+        self.voltage = voltage
+        self.current = current
+        self.power = power
 
     @staticmethod
     def from_str(datapoint: str):
         try:
-            timetz, temp, photo, infra = datapoint.split(" ")
-            return DataPoint(datetime.datetime.fromisoformat(timetz), float(temp), int(photo), int(infra))
+            timetz, temp, photo, infra, vol, cur, power = datapoint.split(" ")
+            return DataPoint(datetime.datetime.fromisoformat(timetz), float(temp), int(photo), int(infra), int(vol), int(cur), int(power))
         except ValueError as ex:
             logging.error("Failed to parse value: " + str(ex) + " Datapoint: " + str(datapoint))
             raise ex
@@ -64,6 +73,6 @@ async def parse_insert(payload: bytes, conn: asyncpg.connection):
 
     for dp in datapoints:
         try:
-            await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor, dp.infrared)
+            await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor, dp.infrared, dp.voltage, dp.current, dp.power)
         except asyncpg.InterfaceError as ex:
             logging.error("Sensors DB connection failure during storing data: " + str(ex))

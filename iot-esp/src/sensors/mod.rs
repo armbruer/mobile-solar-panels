@@ -44,8 +44,9 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> I2CDevices<I2C, SDA, S
         };
 
         let power_sensor = if enable_ina219 {
-            // todo!("Set address");
-            Some(ina219::INA219NonOwned::new(0))
+            // https://e2e.ti.com/support/amplifiers-group/amplifiers/f/amplifiers-forum/811151/ina219-i2c-address
+            // https://wolles-elektronikkiste.de/ina219
+            Some(ina219::INA219NonOwned::new(&mut i2c_master, 0x40, 0.5, 0.1).unwrap())
         } else {
             None
         };
