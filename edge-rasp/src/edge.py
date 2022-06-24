@@ -78,7 +78,8 @@ class DataPoint:
         self.power = power
 
     def __str__(self):
-        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " " + str(self.infrared)
+        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " "\
+               + str(self.infrared) + " " + str(self.voltage) + " " + str(self.current) + " " + str(self.power)
 
 
 class SensorData(resource.Resource):
