@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS sensor (
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, temperature, photoresistor, infrared) VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sensor (time, temperature, photoresistor, infrared, voltage, current, power) VALUES ($1, $2, $3, $4, $5, $6, $7)
 """
 
 
