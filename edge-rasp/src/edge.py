@@ -3,6 +3,8 @@ import logging
 
 import asyncio
 
+from aiohttp import web
+
 import toml
 from typing import List
 
@@ -11,6 +13,8 @@ import aiocoap
 import aiocoap.numbers.codes
 
 import struct
+
+from aiohttp.web_request import Request
 from asyncio_mqtt import Client, MqttError
 from pydantic import BaseModel, ValidationError
 
@@ -169,6 +173,16 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
             logging.error(ex)
 
 
+async def location(request: Request):
+    data = await request.json()
+    print(data)
+    return web.Response()
+
+
+async def geolocation(request):
+    return web.FileResponse("./geolocation.html")
+
+
 async def generate_data(received_data_points: asyncio.Queue):
     logging.warning("Creating mock values")
     while True:
@@ -181,9 +195,13 @@ async def generate_data(received_data_points: asyncio.Queue):
 async def main(conf: Config):
     received_data_points = asyncio.Queue()
 
+    app = web.Application()
+    app.add_routes([web.post('/api/v1/location', location)])
+    app.add_routes([web.get('/', geolocation)])
+    web.run_app(app)
+
     # Resource tree creation
     root = resource.Site()
-
     root.add_resource(['.well-known', 'core'],
                       resource.WKCResource(root.get_resources_as_linkheader))
     root.add_resource(['time'], TimeResource())

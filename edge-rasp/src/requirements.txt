@@ -2,3 +2,8 @@ aiocoap
 asyncio-mqtt
 toml
 pydantic
+aiohttp
+# speedup aiohttp
+cchardet
+aiodns
+Brotli

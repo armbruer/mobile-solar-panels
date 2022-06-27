@@ -4,6 +4,7 @@ services:
   edge_rasp:
     ports:
       - 10.0.100.1:5683:5683/udp
+      - 10.0.100.1:8080:8080
     build:
       context: .
       dockerfile: Dockerfile
