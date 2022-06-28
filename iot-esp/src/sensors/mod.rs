@@ -46,7 +46,7 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> I2CDevices<I2C, SDA, S
         let power_sensor = if enable_ina219 {
             // https://e2e.ti.com/support/amplifiers-group/amplifiers/f/amplifiers-forum/811151/ina219-i2c-address
             // https://wolles-elektronikkiste.de/ina219
-            Some(ina219::INA219NonOwned::new(&mut i2c_master, 0x40, 0.5, 0.1).unwrap())
+            Some(ina219::INA219NonOwned::new(&mut i2c_master, 0x40, true, 0.1, 0.1).unwrap())
         } else {
             None
         };
@@ -72,7 +72,7 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> I2CDevices<I2C, SDA, S
         }
     }
 
-    pub fn get_power(&mut self) -> i16 {
+    pub fn get_power(&mut self) -> i32 {
         match &mut self.power_sensor {
             Some(power_sensor) => power_sensor.power(&mut self.i2c).expect("TODO"),
             None => todo!("Add exception handler"),
@@ -86,7 +86,7 @@ impl<I2C: I2c, SDA: OutputPin + InputPin, SCL: OutputPin> I2CDevices<I2C, SDA, S
         }
     }
 
-    pub fn get_current(&mut self) -> i16 {
+    pub fn get_current(&mut self) -> i32 {
         match &mut self.power_sensor {
             Some(power_sensor) => power_sensor.current(&mut self.i2c).expect("TODO"),
             None => todo!("Add exception handler"),
