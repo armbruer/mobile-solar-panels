@@ -164,13 +164,13 @@ fn main() -> Result<(), EspError> {
             current: i2c_sensors.get_current() as u32,
             power: i2c_sensors.get_power() as u32,
         };
-        log::info!("Adding {:#?}", &datapoint);
         datapoints.push(datapoint);
 
         if send_sensor_data(&mut coap_conn, "10.0.100.1:5683", &datapoints) {
             datapoints.clear();
         }
 
+        // Sleep 10x as often but 10x less time per sleep
         for _ in 0..sleep_time * 10 {
             if platform1.reset_if_button_pressed(&mut powered_adc) {
                 break 'outer;
