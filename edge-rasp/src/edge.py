@@ -1,12 +1,14 @@
 import datetime
+import enum
 import logging
 
 import asyncio
+import threading
 
 from aiohttp import web
 
 import toml
-from typing import List
+from typing import List, Optional
 
 import aiocoap.resource as resource
 import aiocoap
@@ -17,9 +19,39 @@ import struct
 from aiohttp.web_request import Request
 from asyncio_mqtt import Client, MqttError
 from pydantic import BaseModel, ValidationError
-from suncalc import get_position
+import suncalc
 
 logging.basicConfig(level=logging.DEBUG)
+
+
+class CommandTypes(enum.Enum):
+    Nop = 0
+    Location = 1
+    LightTracking = 2
+    Stop = 3
+
+
+class CommandState:
+    command: CommandTypes
+    latitude: float
+    longitude: float
+
+    def set_gps_location(self, latitude, longitude):
+        self.latitude = latitude
+        self.longitude = longitude
+
+
+class Command:
+    command: CommandTypes
+    azimuth: float
+    altitude: float
+
+    def serialize(self) -> bytes:
+        if self.command == CommandTypes.Location:
+            return self.command.value.to_bytes(byteorder='little', signed=False, length=1) \
+                   + struct.pack('<f', self.azimuth) + struct.pack('<f', self.altitude)
+        else:
+            return self.command.value.to_bytes(byteorder='little', signed=False, length=1)
 
 
 class ConfigBroker(BaseModel):
@@ -32,42 +64,35 @@ class Config(BaseModel):
     broker: ConfigBroker
 
 
-class CommandResource(resource.Resource):  # maybe use ObservableResource
-    command_queue: asyncio.Queue
-    """Example resource that can be observed. The `notify` method keeps
-    scheduling itself, and calles `update_state` to trigger sending
-    notifications."""
+class CommandResource(resource.Resource):
+    command_state_lock: threading.Lock
+    command_state: CommandState
 
-    def __init__(self, command_queue):
+    def __init__(self, command_state, command_state_lock):
         super().__init__()
-        self.command_queue = command_queue
+        self.command_state = command_state
+        self.command_state_lock = command_state_lock
 
         self.handle = None
 
-    # def notify(self):
-    #     self.updated_state()
-    #     self.reschedule()
-
-    # def reschedule(self):
-    #     self.handle = asyncio.get_event_loop().call_later(5, self.notify)
-
-    # def update_observation_count(self, count):
-    #     if count and self.handle is None:
-    #         logging.debug("Starting the clock")
-    #         self.reschedule()
-    #     if count == 0 and self.handle:
-    #         logging.debug("Stopping the clock")
-    #         self.handle.cancel()
-    #         self.handle = None
-
     def get_link_description(self):
         # Publish additional data in .well-known/core
-        return dict(**super().get_link_description(), title="Command download resource.")
+        return dict(**super().get_link_description(), title="Command pull resource.")
 
     async def render_get(self, request):
-        # or use await and get() to wait for next command
-        payload = self.command_queue.get_nowait()
-        return aiocoap.Message(payload=payload)
+        self.command_state_lock.acquire()
+        command_state = self.command_state
+        self.command_state_lock.release()
+
+        command = Command()
+        command.command = command_state.command
+        if command_state.command == CommandTypes.Location:
+            sun_loc = suncalc.get_position(datetime.datetime.utcnow(), lng=command_state.longitude,
+                                           lat=command_state.latitude)
+            command.azimuth = sun_loc["azimuth"]
+            command.altitude = sun_loc["altitude"]
+
+        return aiocoap.Message(payload=command.serialize())
 
 
 class DataPoint:
@@ -89,7 +114,7 @@ class DataPoint:
         self.power = power
 
     def __str__(self):
-        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " "\
+        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " " \
                + str(self.infrared) + " " + str(self.voltage) + " " + str(self.current) + " " + str(self.power)
 
 
@@ -135,24 +160,24 @@ class SensorData(resource.Resource):
 
         index = length_size + client_current_time_size
         while index < len(payload):
-            timestamp = int.from_bytes(payload[index:index+8], byteorder='little', signed=False)
+            timestamp = int.from_bytes(payload[index:index + 8], byteorder='little', signed=False)
             timestamp = datetime.datetime.utcfromtimestamp(timestamp)
             # Time that passed since this datapoint was generated
             time_passed = client_current_time - timestamp
             timestamp = edge_current_time - time_passed
             index += 8
 
-            temperature = struct.unpack('<f', payload[index:index+4])[0]
+            temperature = struct.unpack('<f', payload[index:index + 4])[0]
             index += 4
-            photoresistor = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
+            photoresistor = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
             index += 4
-            infrared = int.from_bytes(payload[index:index+4], byteorder='little', signed=True)
+            infrared = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
             index += 4
-            voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
             index += 4
-            current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
             index += 4
-            power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=True)
+            power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
             index += 4
 
             data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
@@ -163,13 +188,6 @@ class SensorData(resource.Resource):
 
         logging.debug("Sending datapoints to message queue...")
         await self.received_data_points.put(data)
-
-        # latitude = self.app['latitude']
-        # longitude = self.app['longitude']
-        # if len(latitude) > 0:
-        #     position = get_position(datetime.datetime.now(),
-        #                             latitude, data.longitude)
-        #     return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=bytes(position))
 
         return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
 
@@ -187,35 +205,34 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
             logging.error(ex)
 
 
+def update_command(app, command_type: CommandTypes, latitude=None, longitude=None):
+    command_state = app['command_state']
+    command_state_lock: threading.Lock = app['command_state_lock']
+    command_state_lock.acquire()
+    command_state.command = command_type
+    if latitude is not None and longitude is not None:
+        command_state.set_gps_location(latitude, longitude)
+    command_state_lock.release()
+
+
 async def location(request: Request):
     data = await request.json()
-    print(data)
-    position = get_position(datetime.datetime.now(),
-                            data.latitude, data.longitude)
-    position["command"] = "location"
-    print(position)
-
-    command_queue = request.app['command_queue']
-    command_queue.put(position)
+    update_command(request.app, CommandTypes.Location, data['latitude'], data['longitude'])
     return web.Response()
 
 
 async def light_tracking(request: Request):
-    command_queue = request.app['command_queue']
-    command_queue.put({"command": "light_tracking"})
+    update_command(request.app, CommandTypes.LightTracking)
     return web.Response()
 
 
 async def stop(request: Request):
-    # request.app['latitude'] = ""
-    # request.app['longitude'] = ""
-    command_queue = request.app['command_queue']
-    command_queue.put({"command": "stop"})
+    update_command(request.app, CommandTypes.Stop)
     return web.Response()
 
 
-async def geolocation(request):
-    return web.FileResponse("./geolocation.html")
+async def control(_request: Request):
+    return web.FileResponse("control.html")
 
 
 async def generate_data(received_data_points: asyncio.Queue):
@@ -227,23 +244,25 @@ async def generate_data(received_data_points: asyncio.Queue):
         await asyncio.sleep(1)
 
 
-async def main(conf: Config):
-    received_data_points = asyncio.Queue()
-    command_queue = asyncio.Queue()
-
+def run_http_server(command_state: CommandState, command_state_lock: threading.Lock):
     app = web.Application()
-    app['command_queue'] = command_queue
+    app['command_state'] = command_state
+    app['command_state_lock'] = command_state_lock
     app.add_routes([web.post('/api/v1/location', location)])
     app.add_routes([web.post('/api/v1/light_tracking', light_tracking)])
     app.add_routes([web.post('/api/v1/stop', stop)])
-    app.add_routes([web.get('/', geolocation)])
+    app.add_routes([web.get('/', control)])
     web.run_app(app)
+
+
+async def main(conf: Config, command_state: CommandState, command_state_lock: threading.Lock):
+    received_data_points = asyncio.Queue()
 
     # Resource tree creation
     root = resource.Site()
     root.add_resource(['.well-known', 'core'],
                       resource.WKCResource(root.get_resources_as_linkheader))
-    root.add_resource(['command'], CommandResource(command_queue))
+    root.add_resource(['command'], CommandResource(command_state, command_state_lock))
     root.add_resource(['sensor', 'data'], SensorData(received_data_points))
 
     logging.info("Creating CoAP server context")
@@ -260,10 +279,18 @@ async def main(conf: Config):
 
 
 if __name__ == "__main__":
+    command_state = CommandState()
+    command_state_lock = threading.Lock()
+
+    thread_http_server = threading.Thread(target=run_http_server, args=(command_state, command_state_lock))
+    thread_http_server.start()
+
     try:
         config_dict = toml.load("config.toml")
         config = Config.parse_obj(config_dict)
-        asyncio.run(main(config))
+        asyncio.run(main(config, command_state, command_state_lock))
     except ValidationError as e:
         logging.critical("Failed to load config file")
         print(e)
+
+    thread_http_server.join()
