@@ -17,6 +17,7 @@ import struct
 from aiohttp.web_request import Request
 from asyncio_mqtt import Client, MqttError
 from pydantic import BaseModel, ValidationError
+from suncalc import get_position
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -31,35 +32,41 @@ class Config(BaseModel):
     broker: ConfigBroker
 
 
-class TimeResource(resource.ObservableResource):
+class CommandResource(resource.Resource):  # maybe use ObservableResource
+    command_queue: asyncio.Queue
     """Example resource that can be observed. The `notify` method keeps
     scheduling itself, and calles `update_state` to trigger sending
     notifications."""
 
-    def __init__(self):
+    def __init__(self, command_queue):
         super().__init__()
+        self.command_queue = command_queue
 
         self.handle = None
 
-    def notify(self):
-        self.updated_state()
-        self.reschedule()
+    # def notify(self):
+    #     self.updated_state()
+    #     self.reschedule()
 
-    def reschedule(self):
-        self.handle = asyncio.get_event_loop().call_later(5, self.notify)
+    # def reschedule(self):
+    #     self.handle = asyncio.get_event_loop().call_later(5, self.notify)
 
-    def update_observation_count(self, count):
-        if count and self.handle is None:
-            logging.debug("Starting the clock")
-            self.reschedule()
-        if count == 0 and self.handle:
-            logging.debug("Stopping the clock")
-            self.handle.cancel()
-            self.handle = None
+    # def update_observation_count(self, count):
+    #     if count and self.handle is None:
+    #         logging.debug("Starting the clock")
+    #         self.reschedule()
+    #     if count == 0 and self.handle:
+    #         logging.debug("Stopping the clock")
+    #         self.handle.cancel()
+    #         self.handle = None
+
+    def get_link_description(self):
+        # Publish additional data in .well-known/core
+        return dict(**super().get_link_description(), title="Command download resource.")
 
     async def render_get(self, request):
-        payload = datetime.datetime.now(). \
-            strftime("%Y-%m-%d %H:%M").encode('ascii')
+        # or use await and get() to wait for next command
+        payload = self.command_queue.get_nowait()
         return aiocoap.Message(payload=payload)
 
 
@@ -157,6 +164,13 @@ class SensorData(resource.Resource):
         logging.debug("Sending datapoints to message queue...")
         await self.received_data_points.put(data)
 
+        # latitude = self.app['latitude']
+        # longitude = self.app['longitude']
+        # if len(latitude) > 0:
+        #     position = get_position(datetime.datetime.now(),
+        #                             latitude, data.longitude)
+        #     return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=bytes(position))
+
         return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
 
 
@@ -176,6 +190,27 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 async def location(request: Request):
     data = await request.json()
     print(data)
+    position = get_position(datetime.datetime.now(),
+                            data.latitude, data.longitude)
+    position["command"] = "location"
+    print(position)
+
+    command_queue = request.app['command_queue']
+    command_queue.put(position)
+    return web.Response()
+
+
+async def light_tracking(request: Request):
+    command_queue = request.app['command_queue']
+    command_queue.put({"command": "light_tracking"})
+    return web.Response()
+
+
+async def stop(request: Request):
+    # request.app['latitude'] = ""
+    # request.app['longitude'] = ""
+    command_queue = request.app['command_queue']
+    command_queue.put({"command": "stop"})
     return web.Response()
 
 
@@ -194,9 +229,13 @@ async def generate_data(received_data_points: asyncio.Queue):
 
 async def main(conf: Config):
     received_data_points = asyncio.Queue()
+    command_queue = asyncio.Queue()
 
     app = web.Application()
+    app['command_queue'] = command_queue
     app.add_routes([web.post('/api/v1/location', location)])
+    app.add_routes([web.post('/api/v1/light_tracking', light_tracking)])
+    app.add_routes([web.post('/api/v1/stop', stop)])
     app.add_routes([web.get('/', geolocation)])
     web.run_app(app)
 
@@ -204,7 +243,7 @@ async def main(conf: Config):
     root = resource.Site()
     root.add_resource(['.well-known', 'core'],
                       resource.WKCResource(root.get_resources_as_linkheader))
-    root.add_resource(['time'], TimeResource())
+    root.add_resource(['command'], CommandResource(command_queue))
     root.add_resource(['sensor', 'data'], SensorData(received_data_points))
 
     logging.info("Creating CoAP server context")
