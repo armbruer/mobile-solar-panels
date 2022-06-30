@@ -35,8 +35,10 @@ class CommandState:
     command: CommandTypes
     latitude: float
     longitude: float
+    local_timezone: datetime.timezone
 
-    def set_gps_location(self, latitude, longitude):
+    def set_location_command_data(self, local_timezone, latitude, longitude):
+        self.local_timezone = local_timezone
         self.latitude = latitude
         self.longitude = longitude
 
@@ -87,7 +89,9 @@ class CommandResource(resource.Resource):
         command = Command()
         command.command = command_state.command
         if command_state.command == CommandTypes.Location:
-            sun_loc = suncalc.get_position(datetime.datetime.utcnow(), lng=command_state.longitude,
+            local_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(
+                command_state.local_timezone)
+            sun_loc = suncalc.get_position(local_time, lng=command_state.longitude,
                                            lat=command_state.latitude)
             command.azimuth = sun_loc["azimuth"]
             command.altitude = sun_loc["altitude"]
@@ -205,19 +209,20 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
             logging.error(ex)
 
 
-def update_command(app, command_type: CommandTypes, latitude=None, longitude=None):
+def update_command(app, command_type: CommandTypes, timeoffset=None, latitude=None, longitude=None):
     command_state = app['command_state']
     command_state_lock: threading.Lock = app['command_state_lock']
     command_state_lock.acquire()
     command_state.command = command_type
     if latitude is not None and longitude is not None:
-        command_state.set_gps_location(latitude, longitude)
+        local_timezone = datetime.timezone(offset=datetime.timedelta(minutes=timeoffset))
+        command_state.set_location_command_data(local_timezone, latitude, longitude)
     command_state_lock.release()
 
 
 async def location(request: Request):
     data = await request.json()
-    update_command(request.app, CommandTypes.Location, data['latitude'], data['longitude'])
+    update_command(request.app, CommandTypes.Location, data['timeoffset'], data['latitude'], data['longitude'])
     return web.Response()
 
 
@@ -255,7 +260,7 @@ def run_http_server(command_state: CommandState, command_state_lock: threading.L
     web.run_app(app)
 
 
-async def main(conf: Config, command_state: CommandState, command_state_lock: threading.Lock):
+async def run_coap_mqtt(conf: Config, command_state: CommandState, command_state_lock: threading.Lock):
     received_data_points = asyncio.Queue()
 
     # Resource tree creation
@@ -278,7 +283,7 @@ async def main(conf: Config, command_state: CommandState, command_state_lock: th
         print(ex)
 
 
-if __name__ == "__main__":
+def main():
     command_state = CommandState()
     command_state_lock = threading.Lock()
 
@@ -288,9 +293,13 @@ if __name__ == "__main__":
     try:
         config_dict = toml.load("config.toml")
         config = Config.parse_obj(config_dict)
-        asyncio.run(main(config, command_state, command_state_lock))
+        asyncio.run(run_coap_mqtt(config, command_state, command_state_lock))
     except ValidationError as e:
         logging.critical("Failed to load config file")
         print(e)
 
     thread_http_server.join()
+
+
+if __name__ == "__main__":
+    main()
