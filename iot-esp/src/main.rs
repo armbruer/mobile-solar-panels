@@ -186,13 +186,13 @@ fn control_platform(coap_conn: &mut Connection, powered_adc: &mut adc::PoweredAd
     let mut datapoints = vec![];
 
     'outer: loop {
-        let sleep_time = if matches!(command.command, CommandType::LightTracking) {
-            platform1.follow_light(&mut powered_adc).unwrap();
-        } else
+        let sleep_time = if command.command == CommandType::LightTracking {
+            platform1.follow_light(&mut powered_adc).unwrap()
+        } else {
             platform1.rotata_to_angle(command.altitude + ver_angle_offset, command.azimuth + ver_angle_offset)
             //TODO calc sleep_time similar to follow_light
-            10;
-        }
+            10
+        };
 
         // Prepare datapoint to transfer
         let datapoint = DataPoint {
@@ -234,7 +234,7 @@ fn control_platform(coap_conn: &mut Connection, powered_adc: &mut adc::PoweredAd
         }
     }
 
-    command;
+    command
 }
 
 
@@ -252,11 +252,11 @@ fn request_command(conn: &mut Connection, addr: &str) -> Command {
 
             debug_assert_eq!(0, payload3.len());
 
-            Command {command, azimuth, altitude};
+            Command {command, azimuth, altitude}
         },
         Err(e) => {
             log::error!("{:?}", e);
-            Command {CommandType::Nop, 0, 0};
+            Command {CommandType::Nop, 0, 0}
         }
     }
 }
