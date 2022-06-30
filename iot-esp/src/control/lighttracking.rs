@@ -161,6 +161,13 @@ impl<
         }
     }
 
+    pub fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32) {
+        self.stepper_motor_ver.rotate_to_angle(High, ver_angle);
+        self.stepper_motor_ver.stop_motor();
+        self.stepper_motor_hor.rotate_to_angle(High, hor_angle);
+        self.stepper_motor_hor.stop_motor();
+    }
+
     pub fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,

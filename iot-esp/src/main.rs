@@ -32,6 +32,22 @@ struct DataPoint {
     power: u32,
 }
 
+#[derive(Clone, Copy, Debug)]
+#[repr(i32)]
+#[derive(PartialEq)]
+enum CommandType {
+    Nop,
+    Location,
+    LightTracking,
+    Stop,
+}
+
+struct Command {
+    comand: CommandType,
+    azimuth: f32,
+    altitude: f32,
+}
+
 fn main() -> Result<(), EspError> {
     esp_idf_sys::link_patches();
 
@@ -144,15 +160,39 @@ fn main() -> Result<(), EspError> {
         interpolator_button_sensor,
     );
 
+    let mut command = request_command(conn, addr);
+    while true {
+        command = match command.command {
+            CommandType::Nop =>  request_command(conn, addr),
+            CommandType::Location => control_platform(coap_conn, powered_adc, platform1, i2c_sensors, command),
+            CommandType::LightTracking => control_platform(coap_conn, powered_adc, platform1, i2c_sensors, command)
+        }
+        std::thread::sleep(Duration::from_millis(10000));
+    }
+
+    Ok(())
+}
+
+fn control_platform(coap_conn: &mut Connection, powered_adc: &mut adc::PoweredAdc, platform1: &mut Platform, i2c_sensors: &mut sensors::I2CDevices, command: &mut Command) -> Command{
     // TODO: For now the initial position at angle 0 is assumed
     // platform1.init_motors(&mut powered_adc);
 
     platform1.find_best_position(&mut powered_adc).unwrap();
 
+    //calculate offset; only necessary for CommandType Location, but is not harmful for CommandType LightTracking
+    let ver_angle_offset = platform1.stepper_motor_ver.current_angle() - command.altitude;
+    let hor_angle_offset = platform1.stepper_motor_hor.current_angle() - command.azimuth;
+
     let mut datapoints = vec![];
 
     'outer: loop {
-        let sleep_time = platform1.follow_light(&mut powered_adc).unwrap();
+        let sleep_time = if matches!(command.command, CommandType::LightTracking) {
+            platform1.follow_light(&mut powered_adc).unwrap();
+        } else
+            platform1.rotata_to_angle(command.altitude + ver_angle_offset, command.azimuth + ver_angle_offset)
+            //TODO calc sleep_time similar to follow_light
+            10;
+        }
 
         // Prepare datapoint to transfer
         let datapoint = DataPoint {
@@ -177,6 +217,14 @@ fn main() -> Result<(), EspError> {
             }
             std::thread::sleep(Duration::from_millis(100));
         }
+
+        let new_command = request_command(conn, addr);
+        if command.command == new_command.command {
+            command = new_command; //override azimuth and altitude
+        } else if command.command != CommandType::Nop {
+            command = new_command; //set return value
+            break 'outer;
+        }
     }
 
     // Motor stopped, now only try to delivery datapoints
@@ -186,7 +234,31 @@ fn main() -> Result<(), EspError> {
         }
     }
 
-    Ok(())
+    command;
+}
+
+
+fn request_command(conn: &mut Connection, addr: &str) -> Command {
+    match conn.request(RequestType::GET, addr, "/command", Vec::new()) {
+        Ok(x) => {
+            let (command_bytes, payload1) = payload.split_at(std::mem::size_of::<i32>());
+            let command: CommandType = unsafe { ::std::mem::transmute(i32::from_le_bytes(command_bytes.try_into().unwrap()))};
+
+            let (azimuth_bytes, payload2) = payload1.split_at(std::mem::size_of::<f32>());
+            let azimuth = f32::from_le_bytes(azimuth_bytes.try_into().unwrap());
+
+            let (altitude_bytes, payload3) = payload2.split_at(std::mem::size_of::<f32>());
+            let altitude = f32::from_le_bytes(altitude_bytes.try_into().unwrap());
+
+            debug_assert_eq!(0, payload3.len());
+
+            Command {command, azimuth, altitude};
+        },
+        Err(e) => {
+            log::error!("{:?}", e);
+            Command {CommandType::Nop, 0, 0};
+        }
+    }
 }
 
 fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint]) -> bool {
