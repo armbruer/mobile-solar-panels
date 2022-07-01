@@ -3,6 +3,7 @@ mod networking;
 mod sensors;
 
 use std::convert::TryInto;
+use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -278,8 +279,8 @@ where
         platform1.follow_light(adc).unwrap()
     } else {
         platform1.rotate_to_angle(
-            command.altitude as i32, // TODO: adjust angle units
-            command.azimuth as i32,  // TODO: adjust angle units
+            (command.altitude * 480.0 / 2.0 / PI) as i32,
+            (command.azimuth * 480.0 / 2.0 / PI) as i32,
         );
         // TODO: calc sleep_time similar to follow_light
         10
