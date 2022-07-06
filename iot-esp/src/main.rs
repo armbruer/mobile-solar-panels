@@ -72,25 +72,25 @@ fn main() -> Result<(), EspError> {
     let mut i2c_sensors =
         sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, true)?;
 
-    // 480 steps = 360°
+    // 540 steps = 360°
     let stepper_motor_ver = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        480 / 3, // TODO calibrate
+        540 / 3, // TODO calibrate
         1,       // TODO to be determined
         0,
         true,
     );
 
-    // 480 steps = 360°
+    // 540 steps = 360°
     let stepper_motor_hor = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        480, // TODO calibrate
+        400, // TODO calibrate
         1,   // TODO to be determined
         0,
         true,
@@ -302,8 +302,8 @@ where
         platform1.follow_light(adc).unwrap()
     } else {
         platform1.rotate_to_angle(
-            (command.altitude * 480.0 / 2.0 / PI) as i32 + angles_at_init.motor_ver,
-            (command.azimuth * 480.0 / 2.0 / PI) as i32 + angles_at_init.motor_hor,
+            (command.altitude * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_ver,
+            (command.azimuth * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_hor,
         );
         // TODO: calc sleep_time similar to follow_light
         10
