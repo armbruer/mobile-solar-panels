@@ -1,5 +1,3 @@
-use std::{thread::sleep, time::Duration};
-
 use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
 use crate::sensors::motor::StepperMotor;
 use adc_interpolator::AdcInterpolator;
@@ -11,6 +9,12 @@ use embedded_hal::{
 #[derive(Clone, Copy, Debug)]
 pub enum LightTrackingError {
     ADCFailed,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MotorAngles {
+    pub motor_hor: i32,
+    pub motor_ver: i32,
 }
 
 pub trait PlatformTrait<
@@ -35,21 +39,7 @@ pub trait PlatformTrait<
         interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
         interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
         interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
-    ) -> Platform<
-        Motor1Pin1,
-        Motor1Pin2,
-        Motor1Pin3,
-        Motor1Pin4,
-        Motor2Pin1,
-        Motor2Pin2,
-        Motor2Pin3,
-        Motor2Pin4,
-        Word,
-        Pin1,
-        Pin2,
-        Pin3,
-        LENGTH,
-    >;
+    ) -> Self;
 
     fn reset_motors_position(&mut self);
 
@@ -60,6 +50,8 @@ pub trait PlatformTrait<
         Pin2: Channel<ADC>,
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn get_current_angles(&self) -> MotorAngles;
 
     fn test_movement(&mut self);
 
@@ -197,21 +189,7 @@ impl<
         interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
         interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
         interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
-    ) -> Platform<
-        Motor1Pin1,
-        Motor1Pin2,
-        Motor1Pin3,
-        Motor1Pin4,
-        Motor2Pin1,
-        Motor2Pin2,
-        Motor2Pin3,
-        Motor2Pin4,
-        Word,
-        Pin1,
-        Pin2,
-        Pin3,
-        LENGTH,
-    > {
+    ) -> Self {
         Platform {
             stepper_motor_ver,
             stepper_motor_hor,
@@ -250,6 +228,13 @@ impl<
             true
         } else {
             false
+        }
+    }
+
+    fn get_current_angles(&self) -> MotorAngles {
+        MotorAngles {
+            motor_hor: self.stepper_motor_hor.current_angle(),
+            motor_ver: self.stepper_motor_ver.current_angle()
         }
     }
 
@@ -332,6 +317,8 @@ impl<
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
+        self.reset_motors_position();
+
         //search for the sun by moving the motors
         let mut best_photoresistor = self.read_photoresistor(adc)?;
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();

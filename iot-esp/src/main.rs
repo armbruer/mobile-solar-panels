@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
-use control::lighttracking::PlatformTrait;
+use control::lighttracking::{MotorAngles, PlatformTrait};
 use embedded_hal::adc::{Channel, OneShot};
 use embedded_hal::digital::v2::OutputPin;
 use esp_idf_hal::adc;
@@ -171,19 +171,46 @@ fn main() -> Result<(), EspError> {
         interpolator_button_sensor,
     );
 
+    // TODO: For now the initial position at angle 0 is assumed
+    // platform1.init_motors(&mut powered_adc);
+
     let addr = "10.0.100.1:5683";
 
     let mut datapoints = vec![];
 
+    let mut command = Command::default();
+    let mut angles_at_init = MotorAngles::default();
     loop {
-        let command = request_command(&mut coap_conn, addr);
+        // Replace command only if received a new command that is not NOP
+        let new_command = match request_command(&mut coap_conn, addr) {
+            Some(cmd) => cmd,
+            None => command,
+        };
 
+        if new_command.command != command.command {
+            // Received instruction to change command
+            // Init the platform for the new command
+            match new_command.command {
+                CommandType::Nop => (),
+                CommandType::Location | CommandType::LightTracking => {
+                    platform1.find_best_position(&mut powered_adc).unwrap();
+                    angles_at_init = platform1.get_current_angles();
+                }
+                CommandType::Stop => break,
+            }
+        }
+
+        if new_command.command != CommandType::Nop {
+            command = new_command;
+        }
+
+        // Platform is initialized for the command, now execute them
         let sleep_time = match command.command {
             CommandType::Nop => 10,
             CommandType::Location | CommandType::LightTracking => {
-                control_platform(&mut powered_adc, &mut platform1, &command)
+                control_platform(&mut powered_adc, &mut platform1, &command, &angles_at_init)
             }
-            CommandType::Stop => break,
+            CommandType::Stop => panic!("Requested to execute stop"),
         };
 
         // Prepare datapoint to transfer
@@ -196,6 +223,7 @@ fn main() -> Result<(), EspError> {
             current: i2c_sensors.get_current() as u32,
             power: i2c_sensors.get_power() as u32,
         };
+        log::debug!("Adding {:?}", &datapoint);
         datapoints.push(datapoint);
 
         if send_sensor_data(&mut coap_conn, addr, &datapoints) {
@@ -246,6 +274,7 @@ fn control_platform<
     adc: &mut Adc,
     platform1: &mut T,
     command: &Command,
+    angles_at_init: &MotorAngles,
 ) -> u32
 where
     Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
@@ -269,25 +298,19 @@ where
         LENGTH,
     >,
 {
-    let command = command.to_owned();
-
-    // TODO: For now the initial position at angle 0 is assumed
-    // platform1.init_motors(&mut powered_adc);
-    platform1.find_best_position(adc).unwrap();
-
     if command.command == CommandType::LightTracking {
         platform1.follow_light(adc).unwrap()
     } else {
         platform1.rotate_to_angle(
-            (command.altitude * 480.0 / 2.0 / PI) as i32,
-            (command.azimuth * 480.0 / 2.0 / PI) as i32,
+            (command.altitude * 480.0 / 2.0 / PI) as i32 + angles_at_init.motor_ver,
+            (command.azimuth * 480.0 / 2.0 / PI) as i32 + angles_at_init.motor_hor,
         );
         // TODO: calc sleep_time similar to follow_light
         10
     }
 }
 
-fn request_command(conn: &mut Connection, addr: &str) -> Command {
+fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
     match conn.request(RequestType::Get, addr, "/command", Vec::new()) {
         Ok(response) => {
             let mut payload_rest;
@@ -313,15 +336,19 @@ fn request_command(conn: &mut Connection, addr: &str) -> Command {
 
             debug_assert_eq!(0, payload_rest.len());
 
-            Command {
+            let res = Command {
                 command,
                 azimuth,
                 altitude,
-            }
+            };
+
+            log::info!("request_command(): Got command: {:?}", res);
+
+            Some(res)
         }
         Err(e) => {
-            log::error!("{:?}", e);
-            Command::default()
+            log::warn!("request_command(): {:?}", e);
+            None
         }
     }
 }
