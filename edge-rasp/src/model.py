@@ -101,16 +101,16 @@ class DataPoint:
         assert index == len(payload)
 
         return DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
-                               infrared=infrared, voltage=voltage, current=current, power=power)
+                         infrared=infrared, voltage=voltage, current=current, power=power)
 
     @staticmethod
     def aggregate_datapoints(datapoints):
-        avg = lambda x: sum(x) / len(x)
+        def avg(x): return sum(x) / len(x)
         ts = datapoints[0].timestamp
-        avg_tmp = avg(map(lambda dp: dp.temperature, datapoints))
-        avg_pr = avg(map(lambda dp: dp.photoresistor, datapoints))
-        avg_ir = avg(map(lambda dp: dp.infrared, datapoints))
-        avg_volt = avg(map(lambda dp: dp.voltage, datapoints))
-        avg_curr = avg(map(lambda dp: dp.current, datapoints))
-        avg_pow = avg(map(lambda dp: dp.power, datapoints))
+        avg_tmp = avg(list(map(lambda dp: dp.temperature, datapoints)))
+        avg_pr = avg(list(map(lambda dp: dp.photoresistor, datapoints)))
+        avg_ir = avg(list(map(lambda dp: dp.infrared, datapoints)))
+        avg_volt = avg(list(map(lambda dp: dp.voltage, datapoints)))
+        avg_curr = avg(list(map(lambda dp: dp.current, datapoints)))
+        avg_pow = avg(list(map(lambda dp: dp.power, datapoints)))
         return DataPoint(ts, avg_tmp, avg_pr, avg_ir, avg_volt, avg_curr, avg_pow)
