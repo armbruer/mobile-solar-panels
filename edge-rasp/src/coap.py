@@ -32,7 +32,7 @@ class CommandResource(resource.Resource):
         command_state = self.command_state
         self.command_state_lock.release()
 
-        command = Command()
+        command = Command(CommandTypes.Nop, 0.0, 0.0)
         command.command = command_state.command
         if command_state.command == CommandTypes.Location:
             local_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(

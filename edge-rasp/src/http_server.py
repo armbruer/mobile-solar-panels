@@ -52,7 +52,8 @@ async def control(_request: Request):
 async def generate_data(received_data_points: asyncio.Queue):
     logging.warning("Creating mock values")
     while True:
-        dp = DataPoint(datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc), 8651.1876, 588, 9911)
+        dp = DataPoint(datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc),
+                       8651.1876, 588, 9911, 2435, 456767, 93454)
         await received_data_points.put([dp])
         logging.info("put some data")
         await asyncio.sleep(1)

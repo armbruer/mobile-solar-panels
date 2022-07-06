@@ -16,7 +16,14 @@ class CommandState:
     longitude: float
     local_timezone: datetime.timezone
 
-    def set_location_command_data(self, local_timezone, latitude, longitude):
+    def __init__(self, command, latitude, longitude, local_timezone):
+        self.command = command
+        self.latitude = latitude
+        self.longitude = longitude
+        self.local_timezone = local_timezone
+
+    def set_location_command_data(self, command, local_timezone, latitude, longitude):
+        self.command = command
         self.local_timezone = local_timezone
         self.latitude = latitude
         self.longitude = longitude
@@ -26,6 +33,11 @@ class Command:
     command: CommandTypes
     azimuth: float
     altitude: float
+
+    def __init__(self, command, azimuth, altitude):
+        self.command = command
+        self.azimuth = azimuth
+        self.altitude = altitude
 
     def serialize(self) -> bytes:
         if self.command == CommandTypes.Location:

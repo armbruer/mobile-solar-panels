@@ -1,11 +1,12 @@
 import asyncio
+import datetime
 import logging
 import threading
 
 import toml
 from pydantic import ValidationError
 
-from model import CommandState
+from model import CommandState, CommandTypes
 from http_server import run_http_server
 from mqtt import Config, run_mqtt
 from coap import run_coap
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 async def main():
-    command_state = CommandState()
+    command_state = CommandState(CommandTypes.Nop, 0.0, 0.0, datetime.timezone.utc)
     command_state_lock = threading.Lock()
     received_data_points = asyncio.Queue()
 
