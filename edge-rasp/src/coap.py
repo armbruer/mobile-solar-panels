@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import logging
-import threading
 
 import aiocoap
 import aiocoap.numbers.codes
@@ -13,7 +12,7 @@ from model import CommandState, DataPoint, Command, CommandTypes
 
 
 class CommandResource(resource.Resource):
-    command_state_lock: threading.Lock
+    command_state_lock: asyncio.Lock
     command_state: CommandState
 
     def __init__(self, command_state, command_state_lock):
@@ -28,7 +27,7 @@ class CommandResource(resource.Resource):
         return dict(**super().get_link_description(), title="Command pull resource.")
 
     async def render_get(self, request):
-        self.command_state_lock.acquire()
+        await self.command_state_lock.acquire()
         command_state = self.command_state
         self.command_state_lock.release()
 
@@ -90,6 +89,8 @@ class SensorData(resource.Resource):
             time_passed = client_current_time - dp.timestamp
             dp.timestamp = edge_current_time - time_passed
 
+            data.append(dp)
+
         assert index == len(payload)
 
         logging.debug("Sending datapoints to message queue...")
@@ -99,7 +100,7 @@ class SensorData(resource.Resource):
 
 
 async def run_coap(received_data_points: asyncio.Queue, command_state: CommandState,
-                   command_state_lock: threading.Lock):
+                   command_state_lock: asyncio.Lock):
     # Resource tree creation
     root = resource.Site()
     root.add_resource(['.well-known', 'core'],

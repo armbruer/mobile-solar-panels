@@ -27,6 +27,11 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
     while True:
         received_dps: List[DataPoint] = await received_data_points.get()
+
+        if len(received_dps) <= 0:
+            logging.error("mqtt.worker(): Got empty received_dps")
+            continue
+
         list.sort(received_dps, key=lambda x: x.timestamp)
         if not end_of_interval:
             end_of_interval = received_dps[0].timestamp + datetime.timedelta(minutes=10)

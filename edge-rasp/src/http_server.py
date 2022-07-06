@@ -2,7 +2,6 @@ import asyncio
 import datetime
 import logging
 import socket
-import threading
 from ssl import SSLContext
 from typing import Union, Optional, Callable, Type
 
@@ -18,10 +17,10 @@ from typing_extensions import Awaitable
 from model import CommandTypes, CommandState, DataPoint
 
 
-def update_command(app, command_type: CommandTypes, timeoffset=None, latitude=None, longitude=None):
+async def update_command(app, command_type: CommandTypes, timeoffset=None, latitude=None, longitude=None):
     command_state = app['command_state']
-    command_state_lock: threading.Lock = app['command_state_lock']
-    command_state_lock.acquire()
+    command_state_lock: asyncio.Lock = app['command_state_lock']
+    await command_state_lock.acquire()
     command_state.command = command_type
     if latitude is not None and longitude is not None:
         local_timezone = datetime.timezone(offset=datetime.timedelta(minutes=timeoffset))
@@ -31,17 +30,17 @@ def update_command(app, command_type: CommandTypes, timeoffset=None, latitude=No
 
 async def location(request: Request):
     data = await request.json()
-    update_command(request.app, CommandTypes.Location, data['timeoffset'], data['latitude'], data['longitude'])
+    await update_command(request.app, CommandTypes.Location, data['timeoffset'], data['latitude'], data['longitude'])
     return web.Response()
 
 
 async def light_tracking(request: Request):
-    update_command(request.app, CommandTypes.LightTracking)
+    await update_command(request.app, CommandTypes.LightTracking)
     return web.Response()
 
 
 async def stop(request: Request):
-    update_command(request.app, CommandTypes.Stop)
+    await update_command(request.app, CommandTypes.Stop)
     return web.Response()
 
 
@@ -114,7 +113,7 @@ async def run_app(
     await main_task
 
 
-async def run_http_server(command_state: CommandState, command_state_lock: threading.Lock):
+async def run_http_server(command_state: CommandState, command_state_lock: asyncio.Lock):
     app = web.Application()
     app['command_state'] = command_state
     app['command_state_lock'] = command_state_lock

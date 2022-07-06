@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import logging
-import threading
 
 import toml
 from pydantic import ValidationError
@@ -16,7 +15,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 async def main():
     command_state = CommandState(CommandTypes.Nop, 0.0, 0.0, datetime.timezone.utc)
-    command_state_lock = threading.Lock()
+    command_state_lock = asyncio.Lock()
     received_data_points = asyncio.Queue()
 
     try:
