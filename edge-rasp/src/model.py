@@ -75,9 +75,14 @@ class DataPoint:
                self.power.to_bytes(4, 'little', signed=False)
 
     @staticmethod
+    def get_serialized_size():
+        # timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
+        return 8 + 4 * 6
+
+    @staticmethod
     def deserialize(payload: bytes):
         index = 0
-        timestamp = int.from_bytes(payload[:8], byteorder='little', signed=False)
+        timestamp = int.from_bytes(payload[index:index + 8], byteorder='little', signed=False)
         timestamp = datetime.datetime.utcfromtimestamp(timestamp)
         index += 8
         temperature = struct.unpack('<f', payload[index:index + 4])[0]
@@ -92,6 +97,8 @@ class DataPoint:
         index += 4
         power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
         index += 4
+
+        assert index == len(payload)
 
         return DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
                                infrared=infrared, voltage=voltage, current=current, power=power)

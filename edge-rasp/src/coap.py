@@ -8,6 +8,7 @@ import aiocoap.numbers.codes
 import aiocoap.resource as resource
 import suncalc
 
+import model
 from model import CommandState, DataPoint, Command, CommandTypes
 
 
@@ -70,8 +71,6 @@ class SensorData(resource.Resource):
 
         length = int.from_bytes(payload[0:4], byteorder='little', signed=False)
 
-        # timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
-        all_fields_size = 8 + 4 * 6
         client_current_time_size = 8
 
         expected_packet_size = length_size + client_current_time_size + all_fields_size * length
@@ -86,7 +85,8 @@ class SensorData(resource.Resource):
 
         index = length_size + client_current_time_size
         while index < len(payload):
-            dp = DataPoint.deserialize(payload)
+            dp = DataPoint.deserialize(payload[index:index + model.DataPoint.get_serialized_size()])
+            index += model.DataPoint.get_serialized_size()
             time_passed = client_current_time - dp.timestamp
             dp.timestamp = edge_current_time - time_passed
 
