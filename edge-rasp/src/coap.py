@@ -73,7 +73,7 @@ class SensorData(resource.Resource):
 
         client_current_time_size = 8
 
-        expected_packet_size = length_size + client_current_time_size + all_fields_size * length
+        expected_packet_size = length_size + client_current_time_size + model.DataPoint.get_serialized_size() * length
         if len(payload) != expected_packet_size:
             return aiocoap.Message(code=aiocoap.numbers.codes.Code.BAD_REQUEST,
                                    payload=b"Expected packet size: " + str(expected_packet_size).encode())
