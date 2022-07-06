@@ -27,7 +27,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
     while True:
         received_dps: List[DataPoint] = await received_data_points.get()
-        list.sort(received_dps, key=lambda a, b: a.timestamp < b.timestamp)
+        list.sort(received_dps, key=lambda x: x.timestamp)
         if not end_of_interval:
             end_of_interval = received_dps[0].timestamp + datetime.timedelta(minutes=10)
 
