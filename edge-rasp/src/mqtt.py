@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import datetime
 from typing import List
 
 from asyncio_mqtt import Client, MqttError
@@ -20,15 +21,34 @@ class Config(BaseModel):
 
 async def worker(client: Client, received_data_points: asyncio.Queue):
     logging.debug("Started worker loop")
-    while True:
-        datapoints: List[DataPoint] = await received_data_points.get()
-        message = ';'.join(map(str, datapoints))
 
-        try:
-            logging.debug("Publishing sensor data")
-            await client.publish("sensors", payload=message.encode())
-        except MqttError as ex:
-            logging.error(ex)
+    end_of_interval = None
+    datapoints: List[DataPoint] = []
+
+    while True:
+        received_dps: List[DataPoint] = await received_data_points.get()
+        list.sort(received_dps, key=lambda a, b: a.timestamp < b.timestamp)
+        if not end_of_interval:
+            end_of_interval = received_dps[0].timestamp + datetime.timedelta(minutes=10)
+
+        next_datapoints: List[DataPoint] = []
+        for rdp in received_dps:
+            if rdp.timestamp < end_of_interval:
+                datapoints.append(rdp)
+            else:
+                next_datapoints.append(rdp)
+
+        # at least one datapoint is of the new interval: aggregate and send data
+        if next_datapoints:
+            dp = DataPoint.aggregate_datapoints(datapoints)
+            datapoints = next_datapoints
+            end_of_interval = next_datapoints[0].timestamp + datetime.timedelta(minutes=10)
+
+            try:
+                logging.debug("Publishing sensor data")
+                await client.publish("sensors", payload=str(dp).encode())
+            except MqttError as ex:
+                logging.error(ex)
 
 
 async def run_mqtt(conf: Config, received_data_points: asyncio.Queue):

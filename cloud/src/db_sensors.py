@@ -68,11 +68,9 @@ async def setup(conn: asyncpg.connection):
 
 
 async def parse_insert(payload: bytes, conn: asyncpg.connection):
-    # TODO data validation on both sides of mqtt
-    datapoints = map(DataPoint.from_str, payload.decode().split(";"))
+    dp = DataPoint.from_str(payload.decode())
 
-    for dp in datapoints:
-        try:
-            await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor, dp.infrared, dp.voltage, dp.current, dp.power)
-        except asyncpg.InterfaceError as ex:
-            logging.error("Sensors DB connection failure during storing data: " + str(ex))
+    try:
+        await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor, dp.infrared, dp.voltage, dp.current, dp.power)
+    except asyncpg.InterfaceError as ex:
+        logging.error("Sensors DB connection failure during storing data: " + str(ex))
