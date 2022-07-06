@@ -65,9 +65,36 @@ class DataPoint:
         self.current = current
         self.power = power
 
-    def __str__(self):
-        return self.timestamp.isoformat() + " " + str(self.temperature) + " " + str(self.photoresistor) + " " \
-               + str(self.infrared) + " " + str(self.voltage) + " " + str(self.current) + " " + str(self.power)
+    def serialize(self) -> bytes:
+        return int(self.timestamp.timestamp()).to_bytes(8, 'little', signed=False) + \
+               struct.pack('<f', self.temperature) + \
+               self.photoresistor.to_bytes(4, 'little', signed=False) + \
+               self.infrared.to_bytes(4, 'little', signed=False) + \
+               self.voltage.to_bytes(4, 'little', signed=False) + \
+               self.current.to_bytes(4, 'little', signed=False) + \
+               self.power.to_bytes(4, 'little', signed=False)
+
+    @staticmethod
+    def deserialize(payload: bytes):
+        index = 0
+        timestamp = int.from_bytes(payload[:8], byteorder='little', signed=False)
+        timestamp = datetime.datetime.utcfromtimestamp(timestamp)
+        index += 8
+        temperature = struct.unpack('<f', payload[index:index + 4])[0]
+        index += 4
+        photoresistor = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        infrared = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+
+        return DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
+                               infrared=infrared, voltage=voltage, current=current, power=power)
 
     @staticmethod
     def aggregate_datapoints(datapoints):

@@ -46,7 +46,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
             try:
                 logging.debug("Publishing sensor data")
-                await client.publish("sensors", payload=str(dp).encode())
+                await client.publish("sensors", payload=dp.serialize())
             except MqttError as ex:
                 logging.error(ex)
 

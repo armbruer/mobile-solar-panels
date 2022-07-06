@@ -1,6 +1,7 @@
 import datetime
 import logging
 import asyncpg
+import struct
 
 from typing import Any
 
@@ -53,13 +54,27 @@ class DataPoint:
         self.power = power
 
     @staticmethod
-    def from_str(datapoint: str):
-        try:
-            timetz, temp, photo, infra, vol, cur, power = datapoint.split(" ")
-            return DataPoint(datetime.datetime.fromisoformat(timetz), float(temp), int(photo), int(infra), int(vol), int(cur), int(power))
-        except ValueError as ex:
-            logging.error("Failed to parse value: " + str(ex) + " Datapoint: " + str(datapoint))
-            raise ex
+    def deserialize(payload: bytes):
+        index = 0
+        timestamp = int.from_bytes(payload[:8], byteorder='little', signed=False)
+        timestamp = datetime.datetime.utcfromtimestamp(timestamp)
+        index += 8
+        temperature = struct.unpack('<f', payload[index:index + 4])[0]
+        index += 4
+        photoresistor = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        infrared = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+        power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
+
+        data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
+                               infrared=infrared, voltage=voltage, current=current, power=power)
+        return data_point
 
 
 async def setup(conn: asyncpg.connection):
@@ -68,7 +83,7 @@ async def setup(conn: asyncpg.connection):
 
 
 async def parse_insert(payload: bytes, conn: asyncpg.connection):
-    dp = DataPoint.from_str(payload.decode())
+    dp = DataPoint.deserialize(payload)
 
     try:
         await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor, dp.infrared, dp.voltage, dp.current, dp.power)

@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import logging
-import struct
 import threading
 
 import aiocoap
@@ -87,29 +86,9 @@ class SensorData(resource.Resource):
 
         index = length_size + client_current_time_size
         while index < len(payload):
-            timestamp = int.from_bytes(payload[index:index + 8], byteorder='little', signed=False)
-            timestamp = datetime.datetime.utcfromtimestamp(timestamp)
-            # Time that passed since this datapoint was generated
-            time_passed = client_current_time - timestamp
-            timestamp = edge_current_time - time_passed
-            index += 8
-
-            temperature = struct.unpack('<f', payload[index:index + 4])[0]
-            index += 4
-            photoresistor = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
-            index += 4
-            infrared = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
-            index += 4
-            voltage = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
-            index += 4
-            current = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
-            index += 4
-            power = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
-            index += 4
-
-            data_point = DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
-                                   infrared=infrared, voltage=voltage, current=current, power=power)
-            data.append(data_point)
+            dp = DataPoint.deserialize(payload)
+            time_passed = client_current_time - dp.timestamp
+            dp.timestamp = edge_current_time - time_passed
 
         assert index == len(payload)
 
