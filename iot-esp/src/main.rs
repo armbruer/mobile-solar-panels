@@ -400,9 +400,12 @@ fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint])
     );
 
     match conn.request(RequestType::Post, addr, "/sensor/data", payload) {
-        Ok(_) => true,
+        Ok(_) => {
+            log::info!("send_sensor_data(): Sent {} datapoints", datapoints.len());
+            true
+        }
         Err(e) => {
-            log::error!("{:?}", e);
+            log::warn!("send_sensor_data(): {:?}", e);
             false
         }
     }

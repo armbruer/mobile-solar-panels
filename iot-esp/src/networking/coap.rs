@@ -57,7 +57,7 @@ impl Connection {
         self.socket
             .send_to(&packet[..], addr)
             .map_err(CoapError::ConnectionError)?;
-        log::info!("Sent request packet");
+        log::debug!("Sent request packet");
 
         self.wait_for_response(request, addr)
     }
@@ -82,18 +82,18 @@ impl Connection {
         addr: SocketAddr,
     ) -> Result<CoapResponse, CoapError> {
         loop {
-            log::info!("Waiting for packet");
+            log::debug!("Waiting for packet");
             let res = self.recv(addr)?;
-            log::info!("Got packet");
+            log::debug!("Got packet");
 
             if res.message.header.get_type() == MessageType::Acknowledgement
                 && res.message.header.message_id == req.message.header.message_id
                 && res.message.get_token() == req.message.get_token()
             {
-                log::info!(
-                    "Received ack: {}, Payload: {}",
+                log::debug!(
+                    "Received ack: {}, Payload length: {}",
                     res.message.header.message_id,
-                    std::str::from_utf8(&res.message.payload).unwrap()
+                    res.message.payload.len()
                 );
                 return Ok(res);
             }
