@@ -8,6 +8,7 @@ from dataclasses import dataclass
 QUERY_CREATE_SENSORS = """
 CREATE TABLE IF NOT EXISTS sensor (
     time TIMESTAMPTZ NOT NULL,
+    device_id INTEGER NOT NULL,
     temperature REAL NULL,
     photoresistor INTEGER NULL,
     infrared INTEGER NULL,
@@ -19,7 +20,7 @@ CREATE TABLE IF NOT EXISTS sensor (
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, temperature, photoresistor, infrared, voltage, current, power) VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO sensor (time, device_id, temperature, photoresistor, infrared, voltage, current, power) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 """
 
 
@@ -79,7 +80,7 @@ async def parse_insert(payload: bytes, conn: asyncpg.connection):
     dp = DataPoint.deserialize(payload)
 
     try:
-        await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.temperature, dp.photoresistor,
+        await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.device_id, dp.temperature, dp.photoresistor,
                            dp.infrared, dp.voltage, dp.current, dp.power)
     except asyncpg.InterfaceError as ex:
         logging.error("Sensors DB connection failure during storing data: " + str(ex))
