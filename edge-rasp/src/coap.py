@@ -28,19 +28,22 @@ class CommandResource(resource.Resource):
     async def render_get(self, request):
         logging.debug("COAP: Acquiring lock...")
         await self.command_state_lock.acquire()
-        command_state = deepcopy(self.command_state)
 
         assert len(request.payload) == 12
         device_id = int.from_bytes(request.payload[0:4], byteorder='little', signed=False)
         target_angle_offset_hor = int.from_bytes(request.payload[4:8], byteorder='little', signed=True)
         target_angle_offset_ver = int.from_bytes(request.payload[8:12], byteorder='little', signed=True)
 
-        if command_state.leader_device_id is None:
-            command_state.leader_device_id = device_id
+        if self.command_state.leader_device_id is None:
+            self.command_state.leader_device_id = device_id
 
-        if command_state.leader_device_id == device_id:
-            command_state.target_angle_offset_hor = target_angle_offset_hor
-            command_state.target_angle_offset_ver = target_angle_offset_ver
+        if self.command_state.leader_device_id == device_id:
+            self.command_state.target_angle_offset_hor = target_angle_offset_hor
+            self.command_state.target_angle_offset_ver = target_angle_offset_ver
+
+        command_state = deepcopy(self.command_state)
+        self.command_state_lock.release()
+        logging.debug("COAP: Lock released")
 
         command = Command(CommandTypes.Nop, 0, 0, 0.0, 0.0)
 
@@ -68,9 +71,6 @@ class CommandResource(resource.Resource):
         elif command.command == CommandTypes.Follower:
             command.target_angle_offset_hor = command_state.target_angle_offset_hor
             command.target_angle_offset_ver = command_state.target_angle_offset_ver
-
-        self.command_state_lock.release()
-        logging.debug("COAP: Lock released")
 
         return aiocoap.Message(payload=command.serialize())
 
