@@ -40,6 +40,10 @@
     9333,
     8000
   ],
+  "containerEnv": {
+    "esp_wifi_ssid": "<SSID>",
+    "esp_wifi_pass": "<PASS>"
+  },
   "workspaceMount": "source=${localWorkspaceFolder},target=/home/esp/iot_esp,type=bind,consistency=cached",
   "workspaceFolder": "/home/esp/iot_esp"
 }

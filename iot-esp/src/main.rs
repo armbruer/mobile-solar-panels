@@ -59,6 +59,16 @@ struct Command {
     altitude: f32,
 }
 
+// 540 steps = 360°
+const FULL_ROTATION_ANGLE: i32 = 540;
+
+fn convert_azimuth_altitude(azimuth: f32, altitude: f32) -> (i32, i32) {
+    (
+        ((-azimuth + 2.0 * PI) / (2.0 * PI) * FULL_ROTATION_ANGLE as f32) as i32,
+        (altitude / (2.0 * PI) * FULL_ROTATION_ANGLE as f32) as i32,
+    )
+}
+
 fn main() -> Result<(), EspError> {
     esp_idf_sys::link_patches();
 
@@ -72,26 +82,24 @@ fn main() -> Result<(), EspError> {
     let mut i2c_sensors =
         sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, true)?;
 
-    // 540 steps = 360°
     let stepper_motor_ver = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        540 / 3, // TODO calibrate
-        1,       // TODO to be determined
+        FULL_ROTATION_ANGLE / 3,
+        1,
         0,
         true,
     );
 
-    // 540 steps = 360°
     let stepper_motor_hor = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        400, // TODO calibrate
-        1,   // TODO to be determined
+        (FULL_ROTATION_ANGLE as f32 / 1.35) as i32,
+        1,
         0,
         true,
     );
@@ -184,74 +192,91 @@ fn main() -> Result<(), EspError> {
     let mut datapoints = vec![];
 
     let mut command = Command::default();
-    let mut angles_at_init = MotorAngles::default();
-    loop {
-        // Replace command only if received a new command that is not NOP
-        let new_command = match request_command(&mut coap_conn, addr) {
-            Some(cmd) => cmd,
-            None => command,
-        };
+    let mut world_angles_offset = MotorAngles::default();
 
-        if new_command.command != command.command {
-            // Received instruction to change command
-            // Init the platform for the new command
-            match new_command.command {
-                CommandType::Nop => (),
-                CommandType::Location | CommandType::LightTracking => {
-                    platform1.find_best_position(&mut powered_adc).unwrap();
-                    angles_at_init = platform1.get_current_angles();
+    'stop_loop: loop {
+        'main_loop: loop {
+            // Replace command only if received a new command that is not NOP
+            let new_command = match request_command(&mut coap_conn, addr) {
+                Some(cmd) => cmd,
+                None => command,
+            };
+
+            if new_command.command != command.command {
+                // Received instruction to change command
+                // Init the platform for the new command
+                match new_command.command {
+                    CommandType::Nop => (),
+                    CommandType::Location | CommandType::LightTracking => {
+                        platform1.find_best_position(&mut powered_adc).unwrap();
+                        if new_command.command == CommandType::Location {
+                            world_angles_offset = platform1.get_current_angles();
+                            let (angle_offset_hor, angle_offset_ver) =
+                                convert_azimuth_altitude(new_command.azimuth, new_command.altitude);
+                            world_angles_offset.motor_hor -= angle_offset_hor;
+                            world_angles_offset.motor_ver -= angle_offset_ver;
+                        }
+                    }
+                    CommandType::Stop => break 'main_loop,
                 }
-                CommandType::Stop => break,
             }
-        }
 
-        if new_command.command != CommandType::Nop {
-            command = new_command;
-        }
-
-        // Platform is initialized for the command, now execute them
-        let sleep_time = match command.command {
-            CommandType::Nop => 10,
-            CommandType::Location | CommandType::LightTracking => {
-                control_platform(&mut powered_adc, &mut platform1, &command, &angles_at_init)
+            if new_command.command != CommandType::Nop {
+                command = new_command;
             }
-            CommandType::Stop => panic!("Requested to execute stop"),
-        };
 
-        // Prepare datapoint to transfer
-        let datapoint = DataPoint {
-            timestamp: std::time::SystemTime::now(),
-            temperature: i2c_sensors.get_temperature(),
-            photoresitor: platform1.read_photoresistor(&mut powered_adc).unwrap(),
-            ir_sensor: platform1.read_ir(&mut powered_adc).unwrap(),
-            voltage: i2c_sensors.get_voltage() as u32,
-            current: i2c_sensors.get_current() as u32,
-            power: i2c_sensors.get_power() as u32,
-        };
-        log::debug!("Adding {:?}", &datapoint);
-        datapoints.push(datapoint);
+            // Platform is initialized for the command, now execute them
+            let sleep_time = match command.command {
+                CommandType::Nop => 10,
+                CommandType::Location | CommandType::LightTracking => control_platform(
+                    &mut powered_adc,
+                    &mut platform1,
+                    &command,
+                    &world_angles_offset,
+                ),
+                CommandType::Stop => panic!("Requested to execute stop"),
+            };
 
-        if send_sensor_data(&mut coap_conn, addr, &datapoints) {
-            datapoints.clear();
-        }
+            // Prepare datapoint to transfer
+            let datapoint = DataPoint {
+                timestamp: std::time::SystemTime::now(),
+                temperature: i2c_sensors.get_temperature(),
+                photoresitor: platform1.read_photoresistor(&mut powered_adc).unwrap(),
+                ir_sensor: platform1.read_ir(&mut powered_adc).unwrap(),
+                voltage: i2c_sensors.get_voltage() as u32,
+                current: i2c_sensors.get_current() as u32,
+                power: i2c_sensors.get_power() as u32,
+            };
+            log::debug!("Adding {:?}", &datapoint);
+            datapoints.push(datapoint);
 
-        // Sleep 10x as often but 10x less time per sleep
-        for _ in 0..sleep_time * 10 {
-            if platform1.reset_if_button_pressed(&mut powered_adc) {
-                break;
+            if send_sensor_data(&mut coap_conn, addr, &datapoints) {
+                datapoints.clear();
             }
-            std::thread::sleep(Duration::from_millis(100));
+
+            // Sleep 10x as often but 10x less time per sleep
+            for _ in 0..sleep_time * 10 {
+                if platform1.reset_if_button_pressed(&mut powered_adc) {
+                    break 'stop_loop;
+                }
+                std::thread::sleep(Duration::from_millis(100));
+            }
+
+            std::thread::sleep(Duration::from_millis(10000));
         }
 
+        platform1.reset_motors_position();
+
+        if platform1.reset_if_button_pressed(&mut powered_adc) {
+                break 'stop_loop;
+        }
         std::thread::sleep(Duration::from_millis(10000));
-    }
 
-    platform1.reset_motors_position();
-
-    // Motor stopped, now only try to delivery datapoints
-    while !datapoints.is_empty() {
-        if send_sensor_data(&mut coap_conn, addr, &datapoints) {
-            datapoints.clear();
+        // Motor stopped, now only try to delivery datapoints
+        while !datapoints.is_empty() {
+            if send_sensor_data(&mut coap_conn, addr, &datapoints) {
+                datapoints.clear();
+            }
         }
     }
 
@@ -279,7 +304,7 @@ fn control_platform<
     adc: &mut Adc,
     platform1: &mut T,
     command: &Command,
-    angles_at_init: &MotorAngles,
+    world_angles_offset: &MotorAngles,
 ) -> u32
 where
     Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
@@ -306,9 +331,10 @@ where
     if command.command == CommandType::LightTracking {
         platform1.follow_light(adc).unwrap()
     } else {
+        let (angle_hor, angle_ver) = convert_azimuth_altitude(command.azimuth, command.altitude);
         platform1.rotate_to_angle(
-            (command.altitude * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_ver,
-            (command.azimuth * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_hor,
+            angle_ver + world_angles_offset.motor_ver,
+            angle_hor + world_angles_offset.motor_hor,
         );
         // TODO: calc sleep_time similar to follow_light
         10
