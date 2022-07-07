@@ -31,13 +31,13 @@ class CommandState:
         return CommandState(CommandTypes.Nop, 0, 0, 0.0, 0.0, datetime.timezone.utc, None)
 
     def __copy__(self):
-        return type(CommandState)(self.command, self.latitude, self.longitude, self.local_timezone)
+        return CommandState(self.command, self.latitude, self.longitude, self.local_timezone)
 
     def __deepcopy__(self, memo):  # memo is a dict of id's to copies
         id_self = id(self)  # memoization avoids unnecessary recursion
         _copy = memo.get(id_self)
         if _copy is None:
-            _copy = type(CommandState)(
+            _copy = CommandState(
                 deepcopy(self.command, memo),
                 deepcopy(self.latitude, memo),
                 deepcopy(self.longitude, memo),
