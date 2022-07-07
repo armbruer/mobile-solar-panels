@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from copy import deepcopy
 
 import aiocoap
 import aiocoap.numbers.codes
@@ -27,9 +28,11 @@ class CommandResource(resource.Resource):
         return dict(**super().get_link_description(), title="Command pull resource.")
 
     async def render_get(self, request):
+        logging.debug("COAP: Acquiring lock...")
         await self.command_state_lock.acquire()
-        command_state = self.command_state
+        command_state = deepcopy(self.command_state)
         self.command_state_lock.release()
+        logging.debug("COAP: Lock released")
 
         command = Command(CommandTypes.Nop, 0.0, 0.0)
         command.command = command_state.command

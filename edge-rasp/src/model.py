@@ -1,6 +1,7 @@
 import datetime
 import enum
 import struct
+from copy import deepcopy
 
 
 class CommandTypes(enum.Enum):
@@ -21,6 +22,21 @@ class CommandState:
         self.latitude = latitude
         self.longitude = longitude
         self.local_timezone = local_timezone
+
+    def __copy__(self):
+        return type(self)(self.command, self.latitude, self.longitude, self.local_timezone)
+
+    def __deepcopy__(self, memo):  # memo is a dict of id's to copies
+        id_self = id(self)  # memoization avoids unnecessary recursion
+        _copy = memo.get(id_self)
+        if _copy is None:
+            _copy = type(self)(
+                deepcopy(self.command, memo),
+                deepcopy(self.latitude, memo),
+                deepcopy(self.longitude, memo),
+                deepcopy(self.local_timezone, memo))
+            memo[id_self] = _copy
+        return _copy
 
     def set_location_command_data(self, command, local_timezone, latitude, longitude):
         self.command = command
