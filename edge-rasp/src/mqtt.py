@@ -54,6 +54,8 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
             next_datapoints: List[DataPoint] = []
             for dp in dps:
                 if dp.timestamp < end_of_interval[device_id]:
+                    if device_id not in datapoints:
+                        datapoints[device_id] = []
                     datapoints[device_id].append(dp)
                 else:
                     next_datapoints.append(dp)
