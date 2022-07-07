@@ -22,7 +22,12 @@ async def update_command(app, command_type: CommandTypes, timeoffset=None, latit
     command_state_lock: asyncio.Lock = app['command_state_lock']
     logging.debug("HTTP: Acquiring lock...")
     await command_state_lock.acquire()
+
+    if command_state.command != command_type:
+        command_state = CommandState.default()
+
     command_state.command = command_type
+
     if latitude is not None and longitude is not None:
         local_timezone = datetime.timezone(offset=datetime.timedelta(minutes=timeoffset))
         command_state.set_location_command_data(local_timezone, latitude, longitude)

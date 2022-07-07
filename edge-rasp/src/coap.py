@@ -21,8 +21,6 @@ class CommandResource(resource.Resource):
         self.command_state = command_state
         self.command_state_lock = command_state_lock
 
-        self.handle = None
-
     def get_link_description(self):
         # Publish additional data in .well-known/core
         return dict(**super().get_link_description(), title="Command pull resource.")
@@ -31,12 +29,31 @@ class CommandResource(resource.Resource):
         logging.debug("COAP: Acquiring lock...")
         await self.command_state_lock.acquire()
         command_state = deepcopy(self.command_state)
-        self.command_state_lock.release()
-        logging.debug("COAP: Lock released")
 
-        command = Command(CommandTypes.Nop, 0.0, 0.0)
-        command.command = command_state.command
-        if command_state.command == CommandTypes.Location:
+        assert len(request.payload) == 12
+        device_id = int.from_bytes(request.payload[0:4], byteorder='little', signed=False)
+        target_angle_offset_hor = int.from_bytes(request.payload[4:8], byteorder='little', signed=True)
+        target_angle_offset_ver = int.from_bytes(request.payload[8:12], byteorder='little', signed=True)
+
+        if command_state.leader_device_id is None:
+            command_state.leader_device_id = device_id
+
+        if command_state.leader_device_id == device_id:
+            command_state.target_angle_offset_hor = target_angle_offset_hor
+            command_state.target_angle_offset_ver = target_angle_offset_ver
+
+        command = Command(CommandTypes.Nop, 0, 0, 0.0, 0.0)
+
+        if command_state.leader_device_id == device_id:
+            command.command = command_state.command
+        # Handle follower devices
+        else:
+            if command_state.command in [CommandTypes.Location, CommandTypes.LightTracking]:
+                command.command = CommandTypes.Follower
+            else:
+                command.command = command_state.command
+
+        if command.command == CommandTypes.Location:
             # suncalc uses local_time.timestamp() and .timestamp() does not respect timezone
             # Therefore we add timezone information for calculations and then remove it once again
             local_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(
@@ -48,6 +65,12 @@ class CommandResource(resource.Resource):
                                            lat=command_state.latitude)
             command.azimuth = sun_loc["azimuth"]
             command.altitude = sun_loc["altitude"]
+        elif command.command == CommandTypes.Follower:
+            command.target_angle_offset_hor = command_state.target_angle_offset_hor
+            command.target_angle_offset_ver = command_state.target_angle_offset_ver
+
+        self.command_state_lock.release()
+        logging.debug("COAP: Lock released")
 
         return aiocoap.Message(payload=command.serialize())
 

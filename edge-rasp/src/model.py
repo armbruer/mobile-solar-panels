@@ -4,35 +4,40 @@ import struct
 from copy import deepcopy
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 class CommandTypes(enum.Enum):
     Nop = 0
     Location = 1
     LightTracking = 2
-    Stop = 3
+    Follower = 3
+    Stop = 4
 
 
+@dataclass
 class CommandState:
     command: CommandTypes
+    target_angle_offset_hor: int
+    target_angle_offset_ver: int
     latitude: float
     longitude: float
     local_timezone: datetime.timezone
 
-    def __init__(self, command, latitude, longitude, local_timezone):
-        self.command = command
-        self.latitude = latitude
-        self.longitude = longitude
-        self.local_timezone = local_timezone
+    leader_device_id: Optional[int]
+
+    @staticmethod
+    def default():
+        return CommandState(CommandTypes.Nop, 0, 0, 0.0, 0.0, datetime.timezone.utc, None)
 
     def __copy__(self):
-        return type(self)(self.command, self.latitude, self.longitude, self.local_timezone)
+        return type(CommandState)(self.command, self.latitude, self.longitude, self.local_timezone)
 
     def __deepcopy__(self, memo):  # memo is a dict of id's to copies
         id_self = id(self)  # memoization avoids unnecessary recursion
         _copy = memo.get(id_self)
         if _copy is None:
-            _copy = type(self)(
+            _copy = type(CommandState)(
                 deepcopy(self.command, memo),
                 deepcopy(self.latitude, memo),
                 deepcopy(self.longitude, memo),
@@ -46,25 +51,27 @@ class CommandState:
         self.longitude = longitude
 
 
+@dataclass
 class Command:
     command: CommandTypes
+    target_angle_offset_hor: int
+    target_angle_offset_ver: int
     azimuth: float
     altitude: float
-
-    def __init__(self, command, azimuth, altitude):
-        self.command = command
-        self.azimuth = azimuth
-        self.altitude = altitude
 
     def serialize(self) -> bytes:
         if self.command == CommandTypes.Location:
             return self.command.value.to_bytes(byteorder='little', signed=False, length=1) \
                    + struct.pack('<f', self.azimuth) + struct.pack('<f', self.altitude)
+        elif self.command == CommandTypes.Follower:
+            return self.command.value.to_bytes(byteorder='little', signed=False, length=1) \
+                   + self.target_angle_offset_hor.to_bytes(byteorder='little', signed=True, length=4) \
+                   + self.target_angle_offset_ver.to_bytes(byteorder='little', signed=True, length=4)
         else:
             return self.command.value.to_bytes(byteorder='little', signed=False, length=1)
 
 
-@dataclass()
+@dataclass
 class DataPoint:
     # unique identifier of ESP device
     device_id: int

@@ -43,6 +43,7 @@ enum CommandType {
     Nop,
     Location,
     LightTracking,
+    Follower,
     Stop,
 }
 
@@ -55,6 +56,8 @@ impl Default for CommandType {
 #[derive(Clone, Copy, Debug, Default)]
 struct Command {
     command: CommandType,
+    target_angle_offset_hor: i32,
+    target_angle_offset_ver: i32,
     azimuth: f32,
     altitude: f32,
 }
@@ -199,7 +202,12 @@ fn main() -> Result<(), EspError> {
     'stop_loop: loop {
         'main_loop: loop {
             // Replace command only if received a new command that is not NOP
-            let new_command = match request_command(&mut coap_conn, addr) {
+            let new_command = match request_command(
+                &mut coap_conn,
+                addr,
+                &(&platform1.get_current_angles() - &world_angles_offset),
+                device_id,
+            ) {
                 Some(cmd) => cmd,
                 None => command,
             };
@@ -209,15 +217,18 @@ fn main() -> Result<(), EspError> {
                 // Init the platform for the new command
                 match new_command.command {
                     CommandType::Nop => (),
-                    CommandType::Location | CommandType::LightTracking => {
+                    CommandType::Follower | CommandType::Location => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
-                        if new_command.command == CommandType::Location {
-                            world_angles_offset = platform1.get_current_angles();
-                            let (angle_offset_hor, angle_offset_ver) =
-                                convert_azimuth_altitude(new_command.azimuth, new_command.altitude);
-                            world_angles_offset.motor_hor -= angle_offset_hor;
-                            world_angles_offset.motor_ver -= angle_offset_ver;
-                        }
+                        world_angles_offset = platform1.get_current_angles();
+                    }
+                    CommandType::LightTracking => {
+                        platform1.find_best_position(&mut powered_adc).unwrap();
+
+                        world_angles_offset = platform1.get_current_angles();
+                        let (angle_offset_hor, angle_offset_ver) =
+                            convert_azimuth_altitude(new_command.azimuth, new_command.altitude);
+                        world_angles_offset.motor_hor -= angle_offset_hor;
+                        world_angles_offset.motor_ver -= angle_offset_ver;
                     }
                     CommandType::Stop => break 'main_loop,
                 }
@@ -230,12 +241,14 @@ fn main() -> Result<(), EspError> {
             // Platform is initialized for the command, now execute them
             let sleep_time = match command.command {
                 CommandType::Nop => 10,
-                CommandType::Location | CommandType::LightTracking => control_platform(
-                    &mut powered_adc,
-                    &mut platform1,
-                    &command,
-                    &world_angles_offset,
-                ),
+                CommandType::Follower | CommandType::Location | CommandType::LightTracking => {
+                    control_platform(
+                        &mut powered_adc,
+                        &mut platform1,
+                        &command,
+                        &world_angles_offset,
+                    )
+                }
                 CommandType::Stop => panic!("Requested to execute stop"),
             };
 
@@ -330,21 +343,42 @@ where
         LENGTH,
     >,
 {
-    if command.command == CommandType::LightTracking {
-        platform1.follow_light(adc).unwrap()
-    } else {
-        let (angle_hor, angle_ver) = convert_azimuth_altitude(command.azimuth, command.altitude);
-        platform1.rotate_to_angle(
-            angle_ver + world_angles_offset.motor_ver,
-            angle_hor + world_angles_offset.motor_hor,
-        );
-        // TODO: calc sleep_time similar to follow_light
-        10
+    match command.command {
+        CommandType::Nop | CommandType::Stop => {
+            panic!("Invalid CommandType in control_platform(): {:?}", command)
+        }
+        CommandType::Follower => {
+            platform1.rotate_to_angle(
+                world_angles_offset.motor_ver + command.target_angle_offset_ver,
+                world_angles_offset.motor_hor + command.target_angle_offset_hor,
+            );
+            10
+        }
+        CommandType::LightTracking => platform1.follow_light(adc).unwrap(),
+        CommandType::Location => {
+            let (angle_hor, angle_ver) =
+                convert_azimuth_altitude(command.azimuth, command.altitude);
+            platform1.rotate_to_angle(
+                angle_ver + world_angles_offset.motor_ver,
+                angle_hor + world_angles_offset.motor_hor,
+            );
+            // TODO: calc sleep_time similar to follow_light
+            10
+        }
     }
 }
 
-fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
-    match conn.request(RequestType::Get, addr, "/command", Vec::new()) {
+fn request_command(
+    conn: &mut Connection,
+    addr: &str,
+    target_angle_offset: &MotorAngles,
+    device_id: u32,
+) -> Option<Command> {
+    let mut payload = vec![0; 12];
+    payload[0..4].copy_from_slice(&device_id.to_le_bytes());
+    payload[4..8].copy_from_slice(&target_angle_offset.motor_hor.to_le_bytes());
+    payload[8..12].copy_from_slice(&target_angle_offset.motor_ver.to_le_bytes());
+    match conn.request(RequestType::Get, addr, "/command", payload) {
         Ok(response) => {
             let mut payload_rest;
 
@@ -355,9 +389,23 @@ fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
                 .try_into()
                 .unwrap();
 
+            let mut target_angle_offset_hor = 0;
+            let mut target_angle_offset_ver = 0;
+
             let mut azimuth = 0.0;
             let mut altitude = 0.0;
-            if command == CommandType::Location {
+
+            if command == CommandType::Follower {
+                let target_angle_hor_bytes;
+                (target_angle_hor_bytes, payload_rest) =
+                    payload_rest.split_at(std::mem::size_of::<i32>());
+                target_angle_offset_hor = i32::from_le_bytes(target_angle_hor_bytes.try_into().unwrap());
+
+                let target_angle_ver_bytes;
+                (target_angle_ver_bytes, payload_rest) =
+                    payload_rest.split_at(std::mem::size_of::<i32>());
+                target_angle_offset_ver = i32::from_le_bytes(target_angle_ver_bytes.try_into().unwrap());
+            } else if command == CommandType::Location {
                 let azimuth_bytes;
                 (azimuth_bytes, payload_rest) = payload_rest.split_at(std::mem::size_of::<f32>());
                 azimuth = f32::from_le_bytes(azimuth_bytes.try_into().unwrap());
@@ -371,6 +419,8 @@ fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
 
             let res = Command {
                 command,
+                target_angle_offset_hor,
+                target_angle_offset_ver,
                 azimuth,
                 altitude,
             };

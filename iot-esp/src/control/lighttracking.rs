@@ -1,3 +1,5 @@
+use std::ops::{Sub, Add};
+
 use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
 use crate::sensors::motor::StepperMotor;
 use adc_interpolator::AdcInterpolator;
@@ -15,6 +17,28 @@ pub enum LightTrackingError {
 pub struct MotorAngles {
     pub motor_hor: i32,
     pub motor_ver: i32,
+}
+
+impl Add<&MotorAngles> for &MotorAngles {
+    type Output = MotorAngles;
+
+    fn add(self, rhs: &MotorAngles) -> Self::Output {
+        MotorAngles {
+            motor_hor: self.motor_hor + rhs.motor_hor,
+            motor_ver: self.motor_ver + rhs.motor_ver,
+        }
+    }
+}
+
+impl Sub<&MotorAngles> for &MotorAngles {
+    type Output = MotorAngles;
+
+    fn sub(self, rhs: &MotorAngles) -> Self::Output {
+        MotorAngles {
+            motor_hor: self.motor_hor - rhs.motor_hor,
+            motor_ver: self.motor_ver - rhs.motor_ver,
+        }
+    }
 }
 
 pub trait PlatformTrait<
