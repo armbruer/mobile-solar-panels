@@ -27,7 +27,7 @@ def split_datapoints(datapoints: List[DataPoint]) -> Dict[int, List[DataPoint]]:
     datapoints_dict: Dict[int, List[DataPoint]] = {}
 
     for dp in datapoints:
-        if not datapoints_dict[dp.device_id]:
+        if dp.device_id not in datapoints_dict:
             datapoints_dict[dp.device_id] = [dp]
         else:
             datapoints_dict[dp.device_id].append(dp)
