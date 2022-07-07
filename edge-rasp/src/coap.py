@@ -39,6 +39,8 @@ class CommandResource(resource.Resource):
         if command_state.command == CommandTypes.Location:
             local_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(
                 command_state.local_timezone)
+            logging.debug(f"COAP: render_get(): Time: {local_time}, Longitude: {command_state.longitude}, "
+                          f"Latitude: {command_state.latitude}")
             sun_loc = suncalc.get_position(local_time, lng=command_state.longitude,
                                            lat=command_state.latitude)
             command.azimuth = sun_loc["azimuth"]
