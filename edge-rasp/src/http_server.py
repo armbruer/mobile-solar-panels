@@ -24,7 +24,7 @@ async def update_command(app, command_type: CommandTypes, timeoffset=None, latit
     await command_state_lock.acquire()
 
     if command_state.command != command_type:
-        command_state = CommandState.default()
+        command_state.reset()
 
     command_state.command = command_type
 
