@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import datetime
+import os
 from typing import List, Dict
 
 from asyncio_mqtt import Client, MqttError
@@ -19,7 +20,7 @@ class Config(BaseModel):
     broker: ConfigBroker
 
 
-DATA_COLLECTION_INTERVAL = datetime.timedelta(minutes=10)
+DATA_COLLECTION_INTERVAL = datetime.timedelta(seconds=int(os.environ["DATA_COLLECTION_INTERVAL_SECONDS"]))
 
 
 # splits the datapoints list into sublists according to their device id
