@@ -2,12 +2,16 @@ mod control;
 mod networking;
 mod sensors;
 
+use std::convert::TryInto;
+use std::f32::consts::PI;
 use std::sync::Arc;
 use std::time::Duration;
 
 use adc_interpolator::AdcInterpolator;
 use coap_lite::RequestType;
-use control::lighttracking::Platform;
+use control::lighttracking::{MotorAngles, PlatformTrait};
+use embedded_hal::adc::{Channel, OneShot};
+use embedded_hal::digital::v2::OutputPin;
 use esp_idf_hal::adc;
 use esp_idf_hal::gpio::{Gpio32, Gpio34, Gpio35};
 use esp_idf_hal::prelude::Peripherals;
@@ -19,6 +23,7 @@ use esp_idf_sys::EspError;
 use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 
 use networking::coap::Connection;
+use num_enum::TryFromPrimitive;
 use sensors::motor::StepperMotor;
 
 #[derive(Clone, Copy, Debug)]
@@ -30,6 +35,28 @@ struct DataPoint {
     voltage: u32,
     current: u32,
     power: u32,
+}
+
+#[derive(Clone, Copy, Debug, TryFromPrimitive, PartialEq)]
+#[repr(u8)]
+enum CommandType {
+    Nop,
+    Location,
+    LightTracking,
+    Stop,
+}
+
+impl Default for CommandType {
+    fn default() -> Self {
+        Self::Nop
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct Command {
+    command: CommandType,
+    azimuth: f32,
+    altitude: f32,
 }
 
 fn main() -> Result<(), EspError> {
@@ -45,25 +72,25 @@ fn main() -> Result<(), EspError> {
     let mut i2c_sensors =
         sensors::I2CDevices::new(peripherals.i2c0, pins.gpio21, pins.gpio22, true, true)?;
 
-    // 480 steps = 360°
+    // 540 steps = 360°
     let stepper_motor_ver = StepperMotor::new(
         pins.gpio16.into_output()?,
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        480 / 3, // TODO calibrate
+        540 / 3, // TODO calibrate
         1,       // TODO to be determined
         0,
         true,
     );
 
-    // 480 steps = 360°
-    let mut stepper_motor_hor = StepperMotor::new(
+    // 540 steps = 360°
+    let stepper_motor_hor = StepperMotor::new(
         pins.gpio12.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
-        480, // TODO calibrate
+        400, // TODO calibrate
         1,   // TODO to be determined
         0,
         true,
@@ -127,6 +154,23 @@ fn main() -> Result<(), EspError> {
         adc::config::Config::new().calibration(true),
     )?;
 
+    // Main motor algorithm
+    let mut platform1 = control::lighttracking::Platform::new(
+        stepper_motor_ver,
+        stepper_motor_hor,
+        interpolator_ir_sensor_1,
+        interpolator_photoresistor,
+        interpolator_button_sensor,
+    );
+
+    /*
+    platform1.test_movement();
+    return Ok(());
+    */
+
+    // TODO: For now the initial position at angle 0 is assumed
+    // platform1.init_motors(&mut powered_adc);
+
     let _wifi = networking::wifi::wifi(
         Arc::new(EspNetifStack::new()?),
         Arc::new(EspSysLoopStack::new()?),
@@ -135,24 +179,44 @@ fn main() -> Result<(), EspError> {
 
     let mut coap_conn = Connection::new();
 
-    // Main motor algorithm
-    let mut platform1 = Platform::new(
-        stepper_motor_ver,
-        stepper_motor_hor,
-        interpolator_ir_sensor_1,
-        interpolator_photoresistor,
-        interpolator_button_sensor,
-    );
-
-    // TODO: For now the initial position at angle 0 is assumed
-    // platform1.init_motors(&mut powered_adc);
-
-    platform1.find_best_position(&mut powered_adc).unwrap();
+    let addr = "10.0.100.1:5683";
 
     let mut datapoints = vec![];
 
-    'outer: loop {
-        let sleep_time = platform1.follow_light(&mut powered_adc).unwrap();
+    let mut command = Command::default();
+    let mut angles_at_init = MotorAngles::default();
+    loop {
+        // Replace command only if received a new command that is not NOP
+        let new_command = match request_command(&mut coap_conn, addr) {
+            Some(cmd) => cmd,
+            None => command,
+        };
+
+        if new_command.command != command.command {
+            // Received instruction to change command
+            // Init the platform for the new command
+            match new_command.command {
+                CommandType::Nop => (),
+                CommandType::Location | CommandType::LightTracking => {
+                    platform1.find_best_position(&mut powered_adc).unwrap();
+                    angles_at_init = platform1.get_current_angles();
+                }
+                CommandType::Stop => break,
+            }
+        }
+
+        if new_command.command != CommandType::Nop {
+            command = new_command;
+        }
+
+        // Platform is initialized for the command, now execute them
+        let sleep_time = match command.command {
+            CommandType::Nop => 10,
+            CommandType::Location | CommandType::LightTracking => {
+                control_platform(&mut powered_adc, &mut platform1, &command, &angles_at_init)
+            }
+            CommandType::Stop => panic!("Requested to execute stop"),
+        };
 
         // Prepare datapoint to transfer
         let datapoint = DataPoint {
@@ -164,29 +228,134 @@ fn main() -> Result<(), EspError> {
             current: i2c_sensors.get_current() as u32,
             power: i2c_sensors.get_power() as u32,
         };
+        log::debug!("Adding {:?}", &datapoint);
         datapoints.push(datapoint);
 
-        if send_sensor_data(&mut coap_conn, "10.0.100.1:5683", &datapoints) {
+        if send_sensor_data(&mut coap_conn, addr, &datapoints) {
             datapoints.clear();
         }
 
         // Sleep 10x as often but 10x less time per sleep
         for _ in 0..sleep_time * 10 {
             if platform1.reset_if_button_pressed(&mut powered_adc) {
-                break 'outer;
+                break;
             }
             std::thread::sleep(Duration::from_millis(100));
         }
+
+        std::thread::sleep(Duration::from_millis(10000));
     }
+
+    platform1.reset_motors_position();
 
     // Motor stopped, now only try to delivery datapoints
     while !datapoints.is_empty() {
-        if send_sensor_data(&mut coap_conn, "10.0.100.1:5683", &datapoints) {
+        if send_sensor_data(&mut coap_conn, addr, &datapoints) {
             datapoints.clear();
         }
     }
 
     Ok(())
+}
+
+fn control_platform<
+    T,
+    Motor1Pin1: OutputPin,
+    Motor1Pin2: OutputPin,
+    Motor1Pin3: OutputPin,
+    Motor1Pin4: OutputPin,
+    Motor2Pin1: OutputPin,
+    Motor2Pin2: OutputPin,
+    Motor2Pin3: OutputPin,
+    Motor2Pin4: OutputPin,
+    Word: Copy + Into<u32> + PartialEq + PartialOrd,
+    Pin1,
+    Pin2,
+    Pin3,
+    const LENGTH: usize,
+    ADC,
+    Adc,
+>(
+    adc: &mut Adc,
+    platform1: &mut T,
+    command: &Command,
+    angles_at_init: &MotorAngles,
+) -> u32
+where
+    Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
+    Pin1: Channel<ADC>,
+    Pin2: Channel<ADC>,
+    Pin3: Channel<ADC>,
+
+    T: PlatformTrait<
+        Motor1Pin1,
+        Motor1Pin2,
+        Motor1Pin3,
+        Motor1Pin4,
+        Motor2Pin1,
+        Motor2Pin2,
+        Motor2Pin3,
+        Motor2Pin4,
+        Word,
+        Pin1,
+        Pin2,
+        Pin3,
+        LENGTH,
+    >,
+{
+    if command.command == CommandType::LightTracking {
+        platform1.follow_light(adc).unwrap()
+    } else {
+        platform1.rotate_to_angle(
+            (command.altitude * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_ver,
+            (command.azimuth * 540.0 / 2.0 / PI) as i32 + angles_at_init.motor_hor,
+        );
+        // TODO: calc sleep_time similar to follow_light
+        10
+    }
+}
+
+fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
+    match conn.request(RequestType::Get, addr, "/command", Vec::new()) {
+        Ok(response) => {
+            let mut payload_rest;
+
+            let command_bytes;
+            (command_bytes, payload_rest) =
+                response.message.payload.split_at(std::mem::size_of::<u8>());
+            let command = u8::from_le_bytes(command_bytes.try_into().unwrap())
+                .try_into()
+                .unwrap();
+
+            let mut azimuth = 0.0;
+            let mut altitude = 0.0;
+            if command == CommandType::Location {
+                let azimuth_bytes;
+                (azimuth_bytes, payload_rest) = payload_rest.split_at(std::mem::size_of::<f32>());
+                azimuth = f32::from_le_bytes(azimuth_bytes.try_into().unwrap());
+
+                let altitude_bytes;
+                (altitude_bytes, payload_rest) = payload_rest.split_at(std::mem::size_of::<f32>());
+                altitude = f32::from_le_bytes(altitude_bytes.try_into().unwrap());
+            }
+
+            debug_assert_eq!(0, payload_rest.len());
+
+            let res = Command {
+                command,
+                azimuth,
+                altitude,
+            };
+
+            log::info!("request_command(): Got command: {:?}", res);
+
+            Some(res)
+        }
+        Err(e) => {
+            log::warn!("request_command(): {:?}", e);
+            None
+        }
+    }
 }
 
 fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint]) -> bool {
@@ -236,9 +405,12 @@ fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint])
     );
 
     match conn.request(RequestType::Post, addr, "/sensor/data", payload) {
-        Ok(_) => true,
+        Ok(_) => {
+            log::info!("send_sensor_data(): Sent {} datapoints", datapoints.len());
+            true
+        }
         Err(e) => {
-            log::error!("{:?}", e);
+            log::warn!("send_sensor_data(): {:?}", e);
             false
         }
     }

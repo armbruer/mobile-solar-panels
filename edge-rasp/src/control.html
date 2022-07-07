@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+	<body>
+		<p>
+			Click one of the buttons to start the Mobile Solar Panels with or without your current
+			coordinates or stop it for now.
+		</p>
+
+		<button onclick="startLocation()">Start using current location</button>
+		<button onclick="start()">Start without location</button>
+		<button onclick="stop()">Stop</button>
+
+		<p id="location"></p>
+
+		<script>
+			var x = document.getElementById("location");
+
+			function startLocation() {
+				if (navigator.geolocation) {
+					navigator.geolocation.getCurrentPosition(sendLocationData);
+				} else {
+					x.innerHTML = "Geolocation is not supported by this browser. Abort start.";
+				}
+			}
+
+			function sendLocationData(position) {
+				const timeoffset = - new Date().getTimezoneOffset();
+				x.innerHTML =
+					"Start Mobile Solar Panels with coordinates:<br>Latitude: " +
+					position.coords.latitude +
+					"<br>Longitude: " +
+					position.coords.longitude +
+					"<br>Your timezone in minutes offset to UTC: " + timeoffset;
+
+				let xhr = new XMLHttpRequest();
+				xhr.open("POST", "/api/v1/location", true);
+				xhr.setRequestHeader("Content-Type", "application/json");
+				xhr.send(
+					JSON.stringify({
+						latitude: position.coords.latitude,
+						longitude: position.coords.longitude,
+						timeoffset: timeoffset,
+					})
+				);
+			}
+
+			function start(position) {
+				x.innerHTML = "Start Mobile Solar Panels without coordinates";
+
+				var xhr = new XMLHttpRequest();
+				xhr.open("POST", "/api/v1/light_tracking", true);
+				xhr.setRequestHeader("Content-Type", "application/json");
+				xhr.send();
+			}
+
+			function stop(position) {
+				x.innerHTML = "Stop Mobile Solar Panels";
+
+				var xhr = new XMLHttpRequest();
+				xhr.open("POST", "/api/v1/stop", true);
+				xhr.setRequestHeader("Content-Type", "application/json");
+				xhr.send();
+			}
+		</script>
+	</body>
+</html>

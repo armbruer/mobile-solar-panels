@@ -1,5 +1,3 @@
-use std::{thread::sleep, time::Duration};
-
 use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
 use crate::sensors::motor::StepperMotor;
 use adc_interpolator::AdcInterpolator;
@@ -11,6 +9,107 @@ use embedded_hal::{
 #[derive(Clone, Copy, Debug)]
 pub enum LightTrackingError {
     ADCFailed,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MotorAngles {
+    pub motor_hor: i32,
+    pub motor_ver: i32,
+}
+
+pub trait PlatformTrait<
+    Motor1Pin1: OutputPin,
+    Motor1Pin2: OutputPin,
+    Motor1Pin3: OutputPin,
+    Motor1Pin4: OutputPin,
+    Motor2Pin1: OutputPin,
+    Motor2Pin2: OutputPin,
+    Motor2Pin3: OutputPin,
+    Motor2Pin4: OutputPin,
+    Word: Copy + Into<u32> + PartialEq + PartialOrd,
+    Pin1,
+    Pin2,
+    Pin3,
+    const LENGTH: usize,
+>
+{
+    fn new(
+        stepper_motor_ver: StepperMotor<Motor1Pin1, Motor1Pin2, Motor1Pin3, Motor1Pin4>,
+        stepper_motor_hor: StepperMotor<Motor2Pin1, Motor2Pin2, Motor2Pin3, Motor2Pin4>,
+        interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
+        interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
+        interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
+    ) -> Self;
+
+    fn reset_motors_position(&mut self);
+
+    fn reset_if_button_pressed<Adc, ADC>(&mut self, adc: &mut Adc) -> bool
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn get_current_angles(&self) -> MotorAngles;
+
+    fn test_movement(&mut self);
+
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32);
+
+    fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn find_best_position<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn search_scope<ADC, Adc>(
+        &mut self,
+        adc: &mut Adc,
+        speed: Speed,
+        angle_hor: i32,
+        angle_ver: i32,
+    ) -> Result<(), LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn follow_light<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
+
+    fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    where
+        Word: Copy + Into<u32> + PartialEq + PartialOrd,
+        Pin1: Channel<ADC>,
+        Pin2: Channel<ADC>,
+        Pin3: Channel<ADC>,
+        Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>;
 }
 
 pub struct Platform<
@@ -53,7 +152,22 @@ impl<
         Pin3,
         const LENGTH: usize,
     >
-    Platform<
+    PlatformTrait<
+        Motor1Pin1,
+        Motor1Pin2,
+        Motor1Pin3,
+        Motor1Pin4,
+        Motor2Pin1,
+        Motor2Pin2,
+        Motor2Pin3,
+        Motor2Pin4,
+        Word,
+        Pin1,
+        Pin2,
+        Pin3,
+        LENGTH,
+    >
+    for Platform<
         Motor1Pin1,
         Motor1Pin2,
         Motor1Pin3,
@@ -69,27 +183,13 @@ impl<
         LENGTH,
     >
 {
-    pub fn new(
+    fn new(
         stepper_motor_ver: StepperMotor<Motor1Pin1, Motor1Pin2, Motor1Pin3, Motor1Pin4>,
         stepper_motor_hor: StepperMotor<Motor2Pin1, Motor2Pin2, Motor2Pin3, Motor2Pin4>,
         interpolator_ir_sensor: AdcInterpolator<Pin1, Word, LENGTH>,
         interpolator_photoresistor: AdcInterpolator<Pin2, Word, LENGTH>,
         interpolator_button: AdcInterpolator<Pin3, Word, LENGTH>,
-    ) -> Platform<
-        Motor1Pin1,
-        Motor1Pin2,
-        Motor1Pin3,
-        Motor1Pin4,
-        Motor2Pin1,
-        Motor2Pin2,
-        Motor2Pin3,
-        Motor2Pin4,
-        Word,
-        Pin1,
-        Pin2,
-        Pin3,
-        LENGTH,
-    > {
+    ) -> Self {
         Platform {
             stepper_motor_ver,
             stepper_motor_hor,
@@ -101,14 +201,14 @@ impl<
         }
     }
 
-    pub fn reset_motors_position(&mut self) {
+    fn reset_motors_position(&mut self) {
         self.stepper_motor_hor.rotate_to_angle(High, 0);
         self.stepper_motor_hor.stop_motor();
         self.stepper_motor_ver.rotate_to_angle(High, 0);
         self.stepper_motor_ver.stop_motor();
     }
 
-    pub fn reset_if_button_pressed<Adc, ADC>(&mut self, adc: &mut Adc) -> bool
+    fn reset_if_button_pressed<Adc, ADC>(&mut self, adc: &mut Adc) -> bool
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -131,7 +231,14 @@ impl<
         }
     }
 
-    pub fn test_movement(&mut self) {
+    fn get_current_angles(&self) -> MotorAngles {
+        MotorAngles {
+            motor_hor: self.stepper_motor_hor.current_angle(),
+            motor_ver: self.stepper_motor_ver.current_angle()
+        }
+    }
+
+    fn test_movement(&mut self) {
         let mut current_angle = 0;
 
         let test_horizontal = false;
@@ -161,7 +268,14 @@ impl<
         }
     }
 
-    pub fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32) {
+        self.stepper_motor_ver.rotate_to_angle(High, ver_angle);
+        self.stepper_motor_ver.stop_motor();
+        self.stepper_motor_hor.rotate_to_angle(High, hor_angle);
+        self.stepper_motor_hor.stop_motor();
+    }
+
+    fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -195,7 +309,7 @@ impl<
         Ok(())
     }
 
-    pub fn find_best_position<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
+    fn find_best_position<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -203,6 +317,8 @@ impl<
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
+        self.reset_motors_position();
+
         //search for the sun by moving the motors
         let mut best_photoresistor = self.read_photoresistor(adc)?;
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();
@@ -242,7 +358,7 @@ impl<
         Ok(())
     }
 
-    pub fn search_scope<ADC, Adc>(
+    fn search_scope<ADC, Adc>(
         &mut self,
         adc: &mut Adc,
         speed: Speed,
@@ -300,7 +416,7 @@ impl<
         Ok(())
     }
 
-    pub fn follow_light<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    fn follow_light<ADC, Adc>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -335,7 +451,7 @@ impl<
         Ok(sleep_time_hor.max(sleep_time_ver))
     }
 
-    pub fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    fn read_ir<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
@@ -350,7 +466,7 @@ impl<
             .expect("Interpolation of infrared sensor failed"))
     }
 
-    pub fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
+    fn read_photoresistor<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<u32, LightTrackingError>
     where
         Word: Copy + Into<u32> + PartialEq + PartialOrd,
         Pin1: Channel<ADC>,
