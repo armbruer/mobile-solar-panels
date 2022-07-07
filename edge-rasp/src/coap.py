@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+from copy import deepcopy
 
 import aiocoap
 import aiocoap.numbers.codes
@@ -27,15 +28,22 @@ class CommandResource(resource.Resource):
         return dict(**super().get_link_description(), title="Command pull resource.")
 
     async def render_get(self, request):
+        logging.debug("COAP: Acquiring lock...")
         await self.command_state_lock.acquire()
-        command_state = self.command_state
+        command_state = deepcopy(self.command_state)
         self.command_state_lock.release()
+        logging.debug("COAP: Lock released")
 
         command = Command(CommandTypes.Nop, 0.0, 0.0)
         command.command = command_state.command
         if command_state.command == CommandTypes.Location:
+            # suncalc uses local_time.timestamp() and .timestamp() does not respect timezone
+            # Therefore we add timezone information for calculations and then remove it once again
             local_time = datetime.datetime.utcnow().replace(tzinfo=datetime.timezone.utc).astimezone(
-                command_state.local_timezone)
+                command_state.local_timezone).replace(tzinfo=datetime.timezone.utc)
+
+            logging.debug(f"COAP: render_get(): Time: {local_time}, Longitude: {command_state.longitude}, "
+                          f"Latitude: {command_state.latitude}")
             sun_loc = suncalc.get_position(local_time, lng=command_state.longitude,
                                            lat=command_state.latitude)
             command.azimuth = sun_loc["azimuth"]

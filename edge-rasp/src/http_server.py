@@ -20,12 +20,14 @@ from model import CommandTypes, CommandState, DataPoint
 async def update_command(app, command_type: CommandTypes, timeoffset=None, latitude=None, longitude=None):
     command_state = app['command_state']
     command_state_lock: asyncio.Lock = app['command_state_lock']
+    logging.debug("HTTP: Acquiring lock...")
     await command_state_lock.acquire()
     command_state.command = command_type
     if latitude is not None and longitude is not None:
         local_timezone = datetime.timezone(offset=datetime.timedelta(minutes=timeoffset))
         command_state.set_location_command_data(local_timezone, latitude, longitude)
     command_state_lock.release()
+    logging.debug("HTTP: Lock released")
 
 
 async def location(request: Request):
