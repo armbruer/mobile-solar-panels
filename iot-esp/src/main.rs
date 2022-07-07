@@ -154,14 +154,6 @@ fn main() -> Result<(), EspError> {
         adc::config::Config::new().calibration(true),
     )?;
 
-    let _wifi = networking::wifi::wifi(
-        Arc::new(EspNetifStack::new()?),
-        Arc::new(EspSysLoopStack::new()?),
-        Arc::new(EspDefaultNvs::new()?),
-    );
-
-    let mut coap_conn = Connection::new();
-
     // Main motor algorithm
     let mut platform1 = control::lighttracking::Platform::new(
         stepper_motor_ver,
@@ -171,8 +163,21 @@ fn main() -> Result<(), EspError> {
         interpolator_button_sensor,
     );
 
+    /*
+    platform1.test_movement();
+    return Ok(());
+    */
+
     // TODO: For now the initial position at angle 0 is assumed
     // platform1.init_motors(&mut powered_adc);
+
+    let _wifi = networking::wifi::wifi(
+        Arc::new(EspNetifStack::new()?),
+        Arc::new(EspSysLoopStack::new()?),
+        Arc::new(EspDefaultNvs::new()?),
+    );
+
+    let mut coap_conn = Connection::new();
 
     let addr = "10.0.100.1:5683";
 
