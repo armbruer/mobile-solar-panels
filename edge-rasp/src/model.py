@@ -38,8 +38,7 @@ class CommandState:
             memo[id_self] = _copy
         return _copy
 
-    def set_location_command_data(self, command, local_timezone, latitude, longitude):
-        self.command = command
+    def set_location_command_data(self, local_timezone, latitude, longitude):
         self.local_timezone = local_timezone
         self.latitude = latitude
         self.longitude = longitude
