@@ -88,8 +88,8 @@ class DataPoint:
 
     @staticmethod
     def get_serialized_size():
-        # timestamp + 4 * 6 (device_id, temperature, photoresistor, ir sensor, voltage, current, power)
-        return 8 + 4 * 7
+        # device_id + timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
+        return 4 + 8 + 4 * 6
 
     @staticmethod
     def deserialize(payload: bytes):

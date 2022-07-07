@@ -70,6 +70,8 @@ fn convert_azimuth_altitude(azimuth: f32, altitude: f32) -> (i32, i32) {
 }
 
 fn main() -> Result<(), EspError> {
+    let device_id: u32 = env!("esp_device_id").parse().unwrap();
+
     esp_idf_sys::link_patches();
 
     let peripherals = Peripherals::take().unwrap();
@@ -250,7 +252,7 @@ fn main() -> Result<(), EspError> {
             log::debug!("Adding {:?}", &datapoint);
             datapoints.push(datapoint);
 
-            if send_sensor_data(&mut coap_conn, addr, &datapoints) {
+            if send_sensor_data(&mut coap_conn, addr, &datapoints, device_id) {
                 datapoints.clear();
             }
 
@@ -268,13 +270,13 @@ fn main() -> Result<(), EspError> {
         platform1.reset_motors_position();
 
         if platform1.reset_if_button_pressed(&mut powered_adc) {
-                break 'stop_loop;
+            break 'stop_loop;
         }
         std::thread::sleep(Duration::from_millis(10000));
 
         // Motor stopped, now only try to delivery datapoints
         while !datapoints.is_empty() {
-            if send_sensor_data(&mut coap_conn, addr, &datapoints) {
+            if send_sensor_data(&mut coap_conn, addr, &datapoints, device_id) {
                 datapoints.clear();
             }
         }
@@ -384,9 +386,14 @@ fn request_command(conn: &mut Connection, addr: &str) -> Option<Command> {
     }
 }
 
-fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint]) -> bool {
-    // length_s + timestamp_s + datasets_length * (timestamp + temperature + photoresistor + IRsensor + voltage + current + power)
-    let mut payload = vec![0; 4 + 8 + datapoints.len() * (8 + 4 * 6)];
+fn send_sensor_data(
+    conn: &mut Connection,
+    addr: &str,
+    datapoints: &[DataPoint],
+    device_id: u32,
+) -> bool {
+    // length_s + timestamp_s + datasets_length * (device_id + timestamp + temperature + photoresistor + IRsensor + voltage + current + power)
+    let mut payload = vec![0; 4 + 8 + datapoints.len() * (4 + 8 + 4 * 6)];
 
     let mut index = 0;
     // 4 bytes: Amount of datasets in payload
@@ -398,6 +405,8 @@ fn send_sensor_data(conn: &mut Connection, addr: &str, datapoints: &[DataPoint])
 
     // TODO: prevent fragementation
     for datapoint in datapoints {
+        payload[index..index + 4].copy_from_slice(&device_id.to_le_bytes());
+        index += 4;
         let unix_time = datapoint
             .timestamp
             .duration_since(std::time::SystemTime::UNIX_EPOCH)

@@ -19,6 +19,9 @@ class Config(BaseModel):
     broker: ConfigBroker
 
 
+DATA_COLLECTION_INTERVAL = datetime.timedelta(minutes=10)
+
+
 # splits the datapoints list into sublists according to their device id
 def split_datapoints(datapoints: List[DataPoint]) -> Dict[int, List[DataPoint]]:
     datapoints_dict: Dict[int, List[DataPoint]] = {}
@@ -40,22 +43,17 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
     while True:
         received_dps: List[DataPoint] = await received_data_points.get()
-
-        if len(received_dps) <= 0:
-            logging.error("mqtt.worker(): Got empty received_dps")
-            continue
-
         received_dps: Dict[int, List[DataPoint]] = split_datapoints(received_dps)
 
-        for device_id, dps in received_dps:
+        for device_id, dps in received_dps.items():
             list.sort(dps, key=lambda x: x.timestamp)
             if not end_of_interval[device_id]:
-                end_of_interval[device_id] = dps[0].timestamp + datetime.timedelta(minutes=10)
+                end_of_interval[device_id] = dps[0].timestamp + DATA_COLLECTION_INTERVAL
 
-        for device_id, dps in received_dps:
+        for device_id, dps in received_dps.items():
             next_datapoints: List[DataPoint] = []
             for dp in dps:
-                if dp.timestamp < end_of_interval:
+                if dp.timestamp < end_of_interval[device_id]:
                     datapoints[device_id].append(dp)
                 else:
                     next_datapoints.append(dp)
@@ -64,7 +62,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
             if next_datapoints:
                 res_dp = DataPoint.aggregate_datapoints(datapoints)
                 datapoints[device_id] = next_datapoints
-                end_of_interval[device_id] = next_datapoints[0].timestamp + datetime.timedelta(minutes=10)
+                end_of_interval[device_id] = next_datapoints[0].timestamp + DATA_COLLECTION_INTERVAL
 
                 try:
                     logging.debug("Publishing sensor data")
