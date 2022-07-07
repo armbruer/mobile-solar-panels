@@ -47,7 +47,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
         for device_id, dps in received_dps.items():
             list.sort(dps, key=lambda x: x.timestamp)
-            if not end_of_interval[device_id]:
+            if device_id not in end_of_interval:
                 end_of_interval[device_id] = dps[0].timestamp + DATA_COLLECTION_INTERVAL
 
         for device_id, dps in received_dps.items():
