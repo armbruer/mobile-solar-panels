@@ -63,7 +63,7 @@ async def worker(client: Client, received_data_points: asyncio.Queue):
 
             # at least one datapoint is of the new interval: aggregate and send data
             if next_datapoints:
-                res_dp = DataPoint.aggregate_datapoints(datapoints)
+                res_dp = DataPoint.aggregate_datapoints(datapoints[device_id])
                 datapoints[device_id] = next_datapoints
                 end_of_interval[device_id] = next_datapoints[0].timestamp + DATA_COLLECTION_INTERVAL
 
