@@ -36,3 +36,7 @@ static ip_address=10.0.100.1/24
 
 
 sudo reboot
+
+# Setup SSL for nginx container
+sudo mkdir edge-iot/edge-rasp/nginx-certs
+sudo openssl req -x509 -sha256 -nodes -days 365 -newkey rsa:4096 -keyout edge-iot/edge-rasp/nginx-certs/rasp-edge.key -out edge-iot/edge-rasp/nginx-certs/rasp-edge.crt
