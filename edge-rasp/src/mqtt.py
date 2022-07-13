@@ -2,23 +2,10 @@ import asyncio
 import logging
 import datetime
 import os
+
 from typing import List, Dict
-
 from asyncio_mqtt import Client, MqttError
-from pydantic import BaseModel
-
-from model import DataPoint
-
-
-class ConfigBroker(BaseModel):
-    host: str
-    port: int
-    client_id: str
-
-
-class Config(BaseModel):
-    broker: ConfigBroker
-
+from model import DataPoint, Config
 
 DATA_COLLECTION_INTERVAL = datetime.timedelta(seconds=int(os.environ["DATA_COLLECTION_INTERVAL_SECONDS"]))
 

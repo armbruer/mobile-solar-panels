@@ -5,6 +5,26 @@ from copy import deepcopy
 
 from dataclasses import dataclass
 from typing import Optional
+from pydantic import BaseModel
+
+
+class ConfigDB(BaseModel):
+    user: str
+    password: str
+    host: str
+    port: int
+    database: str
+
+
+class ConfigBroker(BaseModel):
+    host: str
+    port: int
+    client_id: str
+
+
+class Config(BaseModel):
+    db: ConfigDB
+    broker: ConfigBroker
 
 
 class CommandTypes(enum.Enum):

@@ -38,3 +38,38 @@ services:
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - "${PERSISTENT_DB_PATH:-.}/nginx-certs:/etc/nginx/certs"
+  solarpanels_db:
+    image: postgres
+    networks:
+      default:
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: solarpanels
+    volumes:
+      - "${PERSISTENT_DB_PATH:-.}/solarpanels_db:/var/lib/postgresql/data"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 600M
+
+  # only for debugging
+
+  #pgadmin:
+  #  image: dpage/pgadmin4
+  #  restart: unless-stopped
+  #  ports:
+  #    - 127.0.0.1:8088:5050
+  #  volumes:
+  #    - "${PERSISTENT_DB_PATH:-.}/pgadmin:/var/lib/pgadmin"
+  #  environment:
+  #    - PGADMIN_DEFAULT_EMAIL=user@domain.com
+  #    - PGADMIN_DEFAULT_PASSWORD=FSD9iw8S89FwlPm
+  #    - PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION=True
+  #    - PGADMIN_CONFIG_LOGIN_BANNER="Authorised users only!"
+  #    - PGADMIN_CONFIG_CONSOLE_LOG_LEVEL=10
+  #    - PGADMIN_LISTEN_PORT=5050
+  #  logging:
+  #    driver: none
