@@ -3,38 +3,54 @@ import enum
 import struct
 from copy import deepcopy
 
+from dataclasses import dataclass
+from typing import Optional
+
 
 class CommandTypes(enum.Enum):
     Nop = 0
     Location = 1
     LightTracking = 2
-    Stop = 3
+    Follower = 3
+    Stop = 4
 
 
+@dataclass
 class CommandState:
     command: CommandTypes
+    target_angle_offset_hor: int
+    target_angle_offset_ver: int
     latitude: float
     longitude: float
     local_timezone: datetime.timezone
 
-    def __init__(self, command, latitude, longitude, local_timezone):
-        self.command = command
-        self.latitude = latitude
-        self.longitude = longitude
-        self.local_timezone = local_timezone
+    leader_device_id: Optional[int]
 
-    def __copy__(self):
-        return type(self)(self.command, self.latitude, self.longitude, self.local_timezone)
+    @staticmethod
+    def default():
+        return CommandState(CommandTypes.Nop, 0, 0, 0.0, 0.0, datetime.timezone.utc, None)
+
+    def reset(self):
+        self.command = CommandTypes.Nop
+        self.target_angle_offset_hor = 0
+        self.target_angle_offset_ver = 0
+        self.latitude = 0.0
+        self.longitude = 0.0
+        self.local_timezone = datetime.timezone.utc
+        self.leader_device_id = None
 
     def __deepcopy__(self, memo):  # memo is a dict of id's to copies
         id_self = id(self)  # memoization avoids unnecessary recursion
         _copy = memo.get(id_self)
         if _copy is None:
-            _copy = type(self)(
+            _copy = CommandState(
                 deepcopy(self.command, memo),
+                deepcopy(self.target_angle_offset_hor, memo),
+                deepcopy(self.target_angle_offset_ver, memo),
                 deepcopy(self.latitude, memo),
                 deepcopy(self.longitude, memo),
-                deepcopy(self.local_timezone, memo))
+                deepcopy(self.local_timezone, memo),
+                deepcopy(self.leader_device_id, memo))
             memo[id_self] = _copy
         return _copy
 
@@ -44,25 +60,30 @@ class CommandState:
         self.longitude = longitude
 
 
+@dataclass
 class Command:
     command: CommandTypes
+    target_angle_offset_hor: int
+    target_angle_offset_ver: int
     azimuth: float
     altitude: float
-
-    def __init__(self, command, azimuth, altitude):
-        self.command = command
-        self.azimuth = azimuth
-        self.altitude = altitude
 
     def serialize(self) -> bytes:
         if self.command == CommandTypes.Location:
             return self.command.value.to_bytes(byteorder='little', signed=False, length=1) \
                    + struct.pack('<f', self.azimuth) + struct.pack('<f', self.altitude)
+        elif self.command == CommandTypes.Follower:
+            return self.command.value.to_bytes(byteorder='little', signed=False, length=1) \
+                   + self.target_angle_offset_hor.to_bytes(byteorder='little', signed=True, length=4) \
+                   + self.target_angle_offset_ver.to_bytes(byteorder='little', signed=True, length=4)
         else:
             return self.command.value.to_bytes(byteorder='little', signed=False, length=1)
 
 
+@dataclass
 class DataPoint:
+    # unique identifier of ESP device
+    device_id: int
     timestamp: datetime.datetime
     temperature: float
     photoresistor: int
@@ -71,17 +92,9 @@ class DataPoint:
     current: int
     power: int
 
-    def __init__(self, timestamp, temperature, photoresistor, infrared, voltage, current, power):
-        self.timestamp = timestamp
-        self.temperature = temperature
-        self.photoresistor = photoresistor
-        self.infrared = infrared
-        self.voltage = voltage
-        self.current = current
-        self.power = power
-
     def serialize(self) -> bytes:
-        return int(self.timestamp.timestamp()).to_bytes(8, 'little', signed=False) + \
+        return self.device_id.to_bytes(4, 'little', signed=False) + \
+               int(self.timestamp.timestamp()).to_bytes(8, 'little', signed=False) + \
                struct.pack('<f', self.temperature) + \
                self.photoresistor.to_bytes(4, 'little', signed=False) + \
                self.infrared.to_bytes(4, 'little', signed=False) + \
@@ -91,12 +104,14 @@ class DataPoint:
 
     @staticmethod
     def get_serialized_size():
-        # timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
-        return 8 + 4 * 6
+        # device_id + timestamp + 4 * 6 (temperature, photoresistor, ir sensor, voltage, current, power)
+        return 4 + 8 + 4 * 6
 
     @staticmethod
     def deserialize(payload: bytes):
         index = 0
+        device_id = int.from_bytes(payload[index:index + 4], byteorder='little', signed=False)
+        index += 4
         timestamp = int.from_bytes(payload[index:index + 8], byteorder='little', signed=False)
         timestamp = datetime.datetime.utcfromtimestamp(timestamp)
         index += 8
@@ -115,17 +130,23 @@ class DataPoint:
 
         assert index == len(payload)
 
-        return DataPoint(timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
+        return DataPoint(device_id=device_id, timestamp=timestamp, temperature=temperature, photoresistor=photoresistor,
                          infrared=infrared, voltage=voltage, current=current, power=power)
 
     @staticmethod
     def aggregate_datapoints(datapoints):
         def avg(x): return sum(x) / len(x)
-        ts = datapoints[0].timestamp
+
+        device_id = datapoints[0].device_id
+        timestamp = datapoints[0].timestamp
+
         avg_temperature = avg(list(map(lambda dp: dp.temperature, datapoints)))
         avg_photoresistor = int(avg(list(map(lambda dp: dp.photoresistor, datapoints))))
         avg_infrared = int(avg(list(map(lambda dp: dp.infrared, datapoints))))
         avg_voltage = int(avg(list(map(lambda dp: dp.voltage, datapoints))))
         avg_current = int(avg(list(map(lambda dp: dp.current, datapoints))))
         avg_power = int(avg(list(map(lambda dp: dp.power, datapoints))))
-        return DataPoint(ts, avg_temperature, avg_photoresistor, avg_infrared, avg_voltage, avg_current, avg_power)
+
+        return DataPoint(device_id=device_id, timestamp=timestamp, temperature=avg_temperature,
+                         photoresistor=avg_photoresistor, infrared=avg_infrared, voltage=avg_voltage,
+                         current=avg_current, power=avg_power)

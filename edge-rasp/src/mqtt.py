@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import datetime
-from typing import List
+import os
+from typing import List, Dict
 
 from asyncio_mqtt import Client, MqttError
 from pydantic import BaseModel
@@ -19,41 +20,58 @@ class Config(BaseModel):
     broker: ConfigBroker
 
 
+DATA_COLLECTION_INTERVAL = datetime.timedelta(seconds=int(os.environ["DATA_COLLECTION_INTERVAL_SECONDS"]))
+
+
+# splits the datapoints list into sublists according to their device id
+def split_datapoints(datapoints: List[DataPoint]) -> Dict[int, List[DataPoint]]:
+    datapoints_dict: Dict[int, List[DataPoint]] = {}
+
+    for dp in datapoints:
+        if dp.device_id not in datapoints_dict:
+            datapoints_dict[dp.device_id] = [dp]
+        else:
+            datapoints_dict[dp.device_id].append(dp)
+
+    return datapoints_dict
+
+
 async def worker(client: Client, received_data_points: asyncio.Queue):
     logging.debug("Started worker loop")
 
-    end_of_interval = None
-    datapoints: List[DataPoint] = []
+    end_of_interval: Dict[int, datetime] = {}
+    datapoints: Dict[int, List[DataPoint]] = {}
 
     while True:
         received_dps: List[DataPoint] = await received_data_points.get()
+        received_dps: Dict[int, List[DataPoint]] = split_datapoints(received_dps)
 
-        if len(received_dps) <= 0:
-            logging.error("mqtt.worker(): Got empty received_dps")
-            continue
+        for device_id, dps in received_dps.items():
+            list.sort(dps, key=lambda x: x.timestamp)
+            if device_id not in end_of_interval:
+                end_of_interval[device_id] = dps[0].timestamp + DATA_COLLECTION_INTERVAL
 
-        list.sort(received_dps, key=lambda x: x.timestamp)
-        if not end_of_interval:
-            end_of_interval = received_dps[0].timestamp + datetime.timedelta(minutes=10)
+        for device_id, dps in received_dps.items():
+            next_datapoints: List[DataPoint] = []
+            for dp in dps:
+                if dp.timestamp < end_of_interval[device_id]:
+                    if device_id not in datapoints:
+                        datapoints[device_id] = []
+                    datapoints[device_id].append(dp)
+                else:
+                    next_datapoints.append(dp)
 
-        next_datapoints: List[DataPoint] = []
-        for rdp in received_dps:
-            if rdp.timestamp < end_of_interval:
-                datapoints.append(rdp)
-            else:
-                next_datapoints.append(rdp)
+            # at least one datapoint is of the new interval: aggregate and send data
+            if next_datapoints:
+                res_dp = DataPoint.aggregate_datapoints(datapoints[device_id])
+                datapoints[device_id] = next_datapoints
+                end_of_interval[device_id] = next_datapoints[0].timestamp + DATA_COLLECTION_INTERVAL
 
-        # at least one datapoint is of the new interval: aggregate and send data
-        if next_datapoints:
-            dp = DataPoint.aggregate_datapoints(datapoints)
-            datapoints = next_datapoints
-            end_of_interval = next_datapoints[0].timestamp + datetime.timedelta(minutes=10)
-
-            try:
-                logging.debug("Publishing sensor data")
-                await client.publish("sensors", payload=dp.serialize())
-            except MqttError as ex:
-                logging.error(ex)
+                try:
+                    logging.debug("Publishing sensor data")
+                    await client.publish("sensors", payload=res_dp.serialize())
+                except MqttError as ex:
+                    logging.error(ex)
 
 
 async def run_mqtt(conf: Config, received_data_points: asyncio.Queue):
