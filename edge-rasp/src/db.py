@@ -2,6 +2,7 @@
 import asyncio
 import asyncpg
 import logging
+import pandas as pd
 
 from typing import List
 from model import DataPoint, Config
@@ -26,9 +27,7 @@ SELECT * FROM sensor
 """
 
 
-async def run_db(conf: Config, received_data_points: asyncio.Queue):
-    pool = await connect_to_db(conf)
-
+async def run_db(pool: asyncpg.Pool, received_data_points: asyncio.Queue):
     await worker(pool, received_data_points)
 
 
@@ -39,7 +38,7 @@ async def worker(pool: asyncpg.Pool, received_data_points: asyncio.Queue):
         await store_datapoints(pool, dps)
 
 
-async def connect_to_db(conf: Config):
+async def connect(conf: Config):
     logging.info("Connecting to database")
     try:
         pool = await asyncpg.create_pool(user=conf.db.user,
@@ -83,20 +82,15 @@ async def parse_insert(datapoints: List[DataPoint], conn: asyncpg.connection):
             logging.error("Sensors DB connection failure during storing data: " + str(ex))
 
 
-async def get_datapoints(pool: asyncpg.Pool) -> List[DataPoint]:
+async def get_datapoints(pool: asyncpg.Pool) -> pd.DataFrame:
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
-                dps = []
-                result: List[asyncpg.Record] = await conn.fetch(QUERY_GET_SENSORS)
-
-                for time, device_id, temperature, photoresistor, power in result:
-                    dps.append(DataPoint(timestamp=time, device_id=device_id, temperature=temperature,
-                                         photoresistor=photoresistor, power=power,
-                                         voltage=0, current=0, infrared=0))
-
-                return dps
+                stmt = await conn.prepare(QUERY_GET_SENSORS)
+                columns = [a.name for a in stmt.get_attributes()]
+                data = await stmt.fetch()
+                return pd.DataFrame(data, columns=columns)
 
     except asyncpg.InterfaceError as ex:
         logging.critical("DB connection failure while trying to retrieve data: " + str(ex))
-        return []
+        return pd.DataFrame()

@@ -9,3 +9,5 @@ aiodns
 Brotli
 suncalc
 asyncpg
+scikit-learn
+pandas
