@@ -12,16 +12,13 @@ CREATE TABLE IF NOT EXISTS sensor (
     device_id INTEGER NOT NULL,
     temperature REAL NULL,
     photoresistor INTEGER NULL,
-    infrared INTEGER NULL,
-    voltage INTEGER NULL,
-    current INTEGER NULL,
     power INTEGER NULL,
     PRIMARY KEY ("time")
 );
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, device_id, temperature, photoresistor, infrared, voltage, current, power) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO sensor (time, device_id, temperature, photoresistor, power) VALUES ($1, $2, $3, $4, $5)
 """
 
 
@@ -78,7 +75,7 @@ async def store_datapoints(pool, datapoints):
 async def parse_insert(datapoints: List[DataPoint], conn: asyncpg.connection):
     for dp in datapoints:
         try:
-            await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.device_id, dp.temperature, dp.photoresistor,
-                               dp.infrared, dp.voltage, dp.current, dp.power)
+            await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.device_id,
+                               dp.temperature, dp.photoresistor, dp.power)
         except asyncpg.InterfaceError as ex:
             logging.error("Sensors DB connection failure during storing data: " + str(ex))
