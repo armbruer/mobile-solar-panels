@@ -9,3 +9,13 @@ password = "postgres"
 host = "solarpanels_db"
 port = 5432
 database = "solarpanels"
+
+[ad]
+email_receivers = ["eric.armbruster@tum.de"]
+
+[ad.smtp]
+user = "<user>"
+password = "<password>"
+host = "<host>"
+port = "<port>"
+email_sender = "<sender_email>"

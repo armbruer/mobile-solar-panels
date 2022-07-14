@@ -11,3 +11,4 @@ suncalc
 asyncpg
 scikit-learn
 pandas
+aiosmtplib

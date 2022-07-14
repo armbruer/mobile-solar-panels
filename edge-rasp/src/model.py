@@ -4,7 +4,7 @@ import struct
 from copy import deepcopy
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -22,9 +22,23 @@ class ConfigBroker(BaseModel):
     client_id: str
 
 
+class ConfigSMTP(BaseModel):
+    user: str
+    password: str
+    host: str
+    port: int
+    email_sender: str
+
+
+class ConfigAnomalyDetection(BaseModel):
+    email_receivers: List[str]
+    smtp: ConfigSMTP
+
+
 class Config(BaseModel):
     db: ConfigDB
     broker: ConfigBroker
+    ad: ConfigAnomalyDetection
 
 
 class CommandTypes(enum.Enum):
