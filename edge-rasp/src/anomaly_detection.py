@@ -1,5 +1,6 @@
 import asyncio
 import logging
+
 import db
 import asyncpg
 import pandas as pd
@@ -26,25 +27,27 @@ async def worker(pool: asyncpg.Pool, conf: Config):
         length = len(df.index)
         if length == 0:
             logging.warning("No data for anomaly detection available")
+            continue
         elif length <= 20:
             logging.warning("Not enough data for anomaly detection available")
+            continue
 
         outliers_df = await run_dbscan(df)
         await send_mail(conf, outliers_df)
 
 
 async def send_mail(conf: Config, outliers_df: pd.DataFrame):
-    devices = ', '.join(map(str, outliers_df['device_id'].tolist()))
+    devices = ', '.join(map(str, set(outliers_df['device_id'].tolist())))
 
     # TODO improve message content
-    content = """Hello,
-    we have detected anomalies in your solar plants. The following devices may be affected:
+    content = f"""Hello,
+we have detected anomalies in your solar plants. The following devices may be affected:
 
-    {devices}
+{devices}
 
-    Best regards,
-    Your Mobile Solar Panels Team
-    """.format(devices=devices)
+Best regards,
+Your Mobile Solar Panels Team
+"""
 
     message = EmailMessage()
     message["From"] = conf.ad.smtp.user

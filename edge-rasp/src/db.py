@@ -19,15 +19,19 @@ CREATE TABLE IF NOT EXISTS sensor (
 """
 
 QUERY_INSERT_SENSORS = """
-INSERT INTO sensor (time, device_id, temperature, photoresistor, power) VALUES ($1, $2, $3, $4, $5)
+INSERT INTO sensor (time, device_id, temperature, photoresistor, power) VALUES ($1, $2, $3, $4, $5);
 """
 
 QUERY_GET_SENSORS = """
-SELECT * FROM sensor
+SELECT * FROM sensor;
 """
 
 
 async def run_db(pool: asyncpg.Pool, received_data_points: asyncio.Queue):
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            await setup_table(conn)
+
     await worker(pool, received_data_points)
 
 
@@ -62,15 +66,12 @@ async def setup_table(conn: asyncpg.connection):
 
 
 async def store_datapoints(pool: asyncpg.Pool, datapoints: List[DataPoint]):
-    async with pool.acquire() as conn:
-        async with conn.transaction():
-            await setup_table(conn)
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
                 await parse_insert(datapoints, conn)
     except asyncpg.InterfaceError as ex:
-        logging.critical("DB connection failure while trying to store data: " + str(ex))
+        logging.critical(f"DB connection failure while trying to store data: {ex}")
 
 
 async def parse_insert(datapoints: List[DataPoint], conn: asyncpg.connection):
@@ -79,7 +80,7 @@ async def parse_insert(datapoints: List[DataPoint], conn: asyncpg.connection):
             await conn.execute(QUERY_INSERT_SENSORS, dp.timestamp, dp.device_id,
                                dp.temperature, dp.photoresistor, dp.power)
         except asyncpg.InterfaceError as ex:
-            logging.error("Sensors DB connection failure during storing data: " + str(ex))
+            logging.error(f"Sensors DB connection failure during storing data: {ex}")
 
 
 async def get_datapoints(pool: asyncpg.Pool) -> pd.DataFrame:
@@ -92,5 +93,5 @@ async def get_datapoints(pool: asyncpg.Pool) -> pd.DataFrame:
                 return pd.DataFrame(data, columns=columns)
 
     except asyncpg.InterfaceError as ex:
-        logging.critical("DB connection failure while trying to retrieve data: " + str(ex))
+        logging.critical(f"DB connection failure while trying to retrieve data: {ex}")
         return pd.DataFrame()
