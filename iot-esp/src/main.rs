@@ -92,35 +92,22 @@ fn main() -> Result<(), EspError> {
         pins.gpio17.into_output()?,
         pins.gpio18.into_output()?,
         pins.gpio19.into_output()?,
-        FULL_ROTATION_ANGLE / 3,
+        (FULL_ROTATION_ANGLE as f32 / 3.5) as i32,
         1,
         0,
         true,
     );
 
     let stepper_motor_hor = StepperMotor::new(
-        pins.gpio12.into_output()?,
-        pins.gpio14.into_output()?,
-        pins.gpio27.into_output()?,
         pins.gpio26.into_output()?,
+        pins.gpio27.into_output()?,
+        pins.gpio14.into_output()?,
+        pins.gpio12.into_output()?,
         (FULL_ROTATION_ANGLE as f32 / 1.35) as i32,
         1,
         0,
         true,
     );
-
-    /*
-    loop {
-        log::info!(
-            "Voltage: {}, Current: {}, Power: {}, Shunt Voltage: {}",
-            i2c_sensors.get_voltage(),
-            i2c_sensors.get_current(),
-            i2c_sensors.get_power(),
-            i2c_sensors.get_shunt_voltage()
-        );
-        std::thread::sleep(Duration::from_secs(2));
-    }
-    */
 
     let config_photoresistor = adc_interpolator::Config {
         max_voltage: 3300, // 3300 mV maximum voltage
@@ -177,6 +164,19 @@ fn main() -> Result<(), EspError> {
     );
 
     /*
+    loop {
+        log::info!(
+            "Voltage: {}, Current: {}, Power: {}, Shunt Voltage: {}",
+            i2c_sensors.get_voltage(),
+            i2c_sensors.get_current(),
+            i2c_sensors.get_power(),
+            i2c_sensors.get_shunt_voltage()
+        );
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    */
+
+    /*
     platform1.test_movement();
     return Ok(());
     */
@@ -196,6 +196,7 @@ fn main() -> Result<(), EspError> {
 
     let mut datapoints = vec![];
 
+    // TODO: Poll some time for edge and then start with default mode
     let mut command = Command::default();
     let mut world_angles_offset = MotorAngles::default();
 
@@ -399,12 +400,14 @@ fn request_command(
                 let target_angle_hor_bytes;
                 (target_angle_hor_bytes, payload_rest) =
                     payload_rest.split_at(std::mem::size_of::<i32>());
-                target_angle_offset_hor = i32::from_le_bytes(target_angle_hor_bytes.try_into().unwrap());
+                target_angle_offset_hor =
+                    i32::from_le_bytes(target_angle_hor_bytes.try_into().unwrap());
 
                 let target_angle_ver_bytes;
                 (target_angle_ver_bytes, payload_rest) =
                     payload_rest.split_at(std::mem::size_of::<i32>());
-                target_angle_offset_ver = i32::from_le_bytes(target_angle_ver_bytes.try_into().unwrap());
+                target_angle_offset_ver =
+                    i32::from_le_bytes(target_angle_ver_bytes.try_into().unwrap());
             } else if command == CommandType::Location {
                 let azimuth_bytes;
                 (azimuth_bytes, payload_rest) = payload_rest.split_at(std::mem::size_of::<f32>());

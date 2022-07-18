@@ -1,4 +1,4 @@
-use std::ops::{Sub, Add};
+use std::ops::{Add, Sub};
 
 use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
 use crate::sensors::motor::StepperMotor;
@@ -258,14 +258,14 @@ impl<
     fn get_current_angles(&self) -> MotorAngles {
         MotorAngles {
             motor_hor: self.stepper_motor_hor.current_angle(),
-            motor_ver: self.stepper_motor_ver.current_angle()
+            motor_ver: self.stepper_motor_ver.current_angle(),
         }
     }
 
     fn test_movement(&mut self) {
         let mut current_angle = 0;
 
-        let test_horizontal = false;
+        let test_horizontal = true;
         if test_horizontal {
             for _ in 0..1000 {
                 current_angle = self.stepper_motor_hor.rotate_left(Low);
