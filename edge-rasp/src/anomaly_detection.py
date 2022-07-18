@@ -52,17 +52,28 @@ async def worker(pool: asyncpg.Pool, conf: Config):
 
 
 async def send_mail(conf: Config, outliers_df: pd.DataFrame):
-    devices = ', '.join(map(str, set(outliers_df['device_id'].tolist())))
+    devices = ', '.join(map(str, set(outliers_df.sort_values(by=['device_id'])['device_id'].tolist())))
 
-    # TODO improve message content
+    outliers_dfs = [y for _, y in pd.groupby('device_id', as_index=False)]
+    anomalies = []
+    for df in outliers_dfs:
+        device_id = str(df.head(1)['device_id'])
+        anomaly_datetimes = ', '.join(map(lambda x: x.isoformat(), outliers_df.sort_values(by=['time'])['time'].to_list()))
+        anomalies.append(device_id + ': ' + anomaly_datetimes)
+
+    outliers = '\n'.join(anomalies)
+
     content = f"""Hello,
 we have detected anomalies in your solar plants. The following devices may be affected:
 
 {devices}
 
+{outliers}
+
 Best regards,
 Your Mobile Solar Panels Team
 """
+
 
     message = EmailMessage()
     message["From"] = conf.ad.smtp.user
