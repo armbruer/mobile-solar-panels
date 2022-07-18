@@ -58,7 +58,8 @@ async def send_mail(conf: Config, outliers_df: pd.DataFrame):
     anomalies = []
     for df in outliers_dfs:
         device_id = str(df.head(1)['device_id'])
-        anomaly_datetimes = ', '.join(map(lambda x: x.isoformat(), outliers_df.sort_values(by=['time'])['time'].to_list()))
+        anomaly_datetimes = ', '.join(map(lambda x: x.isoformat(),
+                                          outliers_df.sort_values(by=['time', 'device_id'])['time'].to_list()))
         anomalies.append(device_id + ': ' + anomaly_datetimes)
 
     outliers = '\n'.join(anomalies)
