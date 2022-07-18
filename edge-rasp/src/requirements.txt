@@ -4,7 +4,7 @@ toml
 pydantic
 aiohttp
 # speedup aiohttp
-#cchardet
+cchardet
 aiodns
 Brotli
 suncalc
