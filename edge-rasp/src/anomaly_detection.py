@@ -12,14 +12,24 @@ from sklearn.preprocessing import StandardScaler
 from model import Config
 from email.message import EmailMessage
 
+MIN_DATAPOINTS = 20
 ANOMALY_DETECTION_INTERVAL = datetime.timedelta(minutes=10).total_seconds()
+REPORT_INTERVAL = datetime.timedelta(minutes=180).total_seconds()
 
 
 async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
+    if not (REPORT_INTERVAL % ANOMALY_DETECTION_INTERVAL == 0):
+        logging.critical(f"REPORT_INTERVAL '{REPORT_INTERVAL}' must be a multiple of ANOMALY_DETECTION_INTERVAL"
+                         f"'{ANOMALY_DETECTION_INTERVAL}'")
+
     await worker(pool, conf)
 
 
 async def worker(pool: asyncpg.Pool, conf: Config):
+    outliers_dfs = pd.DataFrame()
+    rounds = REPORT_INTERVAL / ANOMALY_DETECTION_INTERVAL
+    curr_round = 0
+
     while True:
         await asyncio.sleep(ANOMALY_DETECTION_INTERVAL)
 
@@ -28,12 +38,17 @@ async def worker(pool: asyncpg.Pool, conf: Config):
         if length == 0:
             logging.warning("No data for anomaly detection available")
             continue
-        elif length <= 20:
+        elif length <= MIN_DATAPOINTS:
             logging.warning("Not enough data for anomaly detection available")
             continue
 
-        outliers_df = await run_dbscan(df)
-        await send_mail(conf, outliers_df)
+        if curr_round < rounds:
+            outliers_dfs.append(await run_dbscan(df))
+            curr_round += 1
+        else:
+            curr_round = 0
+            await send_mail(conf, pd.concat(outliers_dfs))
+
 
 
 async def send_mail(conf: Config, outliers_df: pd.DataFrame):
