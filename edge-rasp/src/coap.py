@@ -72,6 +72,7 @@ class CommandResource(resource.Resource):
             command.target_angle_offset_hor = command_state.target_angle_offset_hor
             command.target_angle_offset_ver = command_state.target_angle_offset_ver
 
+        logging.debug(f"COAP: Sending command: {repr(command)}")
         return aiocoap.Message(payload=command.serialize())
 
 
