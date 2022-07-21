@@ -34,12 +34,16 @@ class CommandResource(resource.Resource):
         target_angle_offset_hor = int.from_bytes(request.payload[4:8], byteorder='little', signed=True)
         target_angle_offset_ver = int.from_bytes(request.payload[8:12], byteorder='little', signed=True)
 
-        if self.command_state.leader_device_id is None:
+        # Set new leader if no leader is defined or the last request from the current leader is too long ago
+        now = datetime.datetime.utcnow()
+        max_request_time = datetime.timedelta(minutes=2)
+        if self.command_state.leader_device_id is None or (now - self.command_state.last_leaderupdate) > max_request_time:
             self.command_state.leader_device_id = device_id
 
         if self.command_state.leader_device_id == device_id:
             self.command_state.target_angle_offset_hor = target_angle_offset_hor
             self.command_state.target_angle_offset_ver = target_angle_offset_ver
+            self.command_state.last_leader_update = datetime.datetime.utcnow()
 
         command_state = deepcopy(self.command_state)
         self.command_state_lock.release()
