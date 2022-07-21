@@ -1,66 +1,99 @@
 <!DOCTYPE html>
 <html>
-	<body>
-		<p>
-			Click one of the buttons to start the Mobile Solar Panels with or without your current
-			coordinates or stop it for now.
-		</p>
+    <body>
+        <p>
+            Click one of the buttons to start the Mobile Solar Panels with or without your current
+            coordinates or stop it for now. The currently active command is:
+        </p>
+        <p id="command">{command}</p>
 
-		<button onclick="startLocation()">Start using current location</button>
-		<button onclick="start()">Start without location</button>
-		<button onclick="stop()">Stop</button>
+        <button onclick="startLocation()">Start using current location</button>
+        <button onclick="start()">Start without location</button>
+        <button onclick="stop()">Stop</button>
 
-		<p id="location"></p>
+        <p id="location"></p>
 
-		<script>
-			var x = document.getElementById("location");
+        <script>
+            var x = document.getElementById("location");
+            var c = document.getElementById("command");
 
-			function startLocation() {
-				if (navigator.geolocation) {
-					navigator.geolocation.getCurrentPosition(sendLocationData);
-				} else {
-					x.innerHTML = "Geolocation is not supported by this browser. Abort start.";
-				}
-			}
+            function startLocation() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(sendLocationData);
+                } else {
+                    x.innerHTML = "Geolocation is not supported by this browser. Abort start.";
+                }
+            }
 
-			function sendLocationData(position) {
-				const timeoffset = - new Date().getTimezoneOffset();
-				x.innerHTML =
-					"Start Mobile Solar Panels with coordinates:<br>Latitude: " +
-					position.coords.latitude +
-					"<br>Longitude: " +
-					position.coords.longitude +
-					"<br>Your timezone in minutes offset to UTC: " + timeoffset;
+            function sendLocationData(position) {
+                const timeoffset = -new Date().getTimezoneOffset();
+                x.innerHTML =
+                    "Starting Mobile Solar Panels with coordinates:<br>Latitude: " +
+                    position.coords.latitude +
+                    "<br>Longitude: " +
+                    position.coords.longitude +
+                    "<br>Your timezone in minutes offset to UTC: " +
+                    timeoffset;
 
-				let xhr = new XMLHttpRequest();
-				xhr.open("POST", "/api/v1/location", true);
-				xhr.setRequestHeader("Content-Type", "application/json");
-				xhr.send(
-					JSON.stringify({
-						latitude: position.coords.latitude,
-						longitude: position.coords.longitude,
-						timeoffset: timeoffset,
-					})
-				);
-			}
+                let xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            x.innerHTML = "Start with coordinates was successful";
+                            c.innerHTML = "Location";
+                        } else {
+                            x.innerHTML = "Start with coordinates was unsuccessful";
+                        }
+                    }
+                };
+                xhr.open("POST", "/api/v1/location", true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                xhr.send(
+                    JSON.stringify({
+                        latitude: position.coords.latitude,
+                        longitude: position.coords.longitude,
+                        timeoffset: timeoffset,
+                    })
+                );
+            }
 
-			function start(position) {
-				x.innerHTML = "Start Mobile Solar Panels without coordinates";
+            function start(position) {
+                x.innerHTML = "Starting Mobile Solar Panels without coordinates";
 
-				var xhr = new XMLHttpRequest();
-				xhr.open("POST", "/api/v1/light_tracking", true);
-				xhr.setRequestHeader("Content-Type", "application/json");
-				xhr.send();
-			}
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            x.innerHTML = "Start without coordinates was successful";
+                            c.innerHTML = "LightTracking";
+                        } else {
+                            x.innerHTML = "Start without coordinates was unsuccessful";
+                        }
+                    }
+                };
+                xhr.open("POST", "/api/v1/light_tracking", true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                xhr.send();
+            }
 
-			function stop(position) {
-				x.innerHTML = "Stop Mobile Solar Panels";
+            function stop(position) {
+                x.innerHTML = "Stopping Mobile Solar Panels";
 
-				var xhr = new XMLHttpRequest();
-				xhr.open("POST", "/api/v1/stop", true);
-				xhr.setRequestHeader("Content-Type", "application/json");
-				xhr.send();
-			}
-		</script>
-	</body>
+                var xhr = new XMLHttpRequest();
+                xhr.onreadystatechange = function () {
+                    if (xhr.readyState == XMLHttpRequest.DONE) {
+                        if (xhr.status === 200) {
+                            x.innerHTML = "Stop was successful";
+                            c.innerHTML = "Stop";
+                        } else {
+                            x.innerHTML = "Stop was unsuccessful";
+                        }
+                    }
+                };
+                xhr.open("POST", "/api/v1/stop", true);
+                xhr.setRequestHeader("Content-Type", "application/json");
+                xhr.send();
+            }
+        </script>
+    </body>
 </html>
