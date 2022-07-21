@@ -88,4 +88,10 @@ async def run_dbscan(df: pd.DataFrame):
 
     # Use "df" that all columns are present
     outliers_df = df[model.labels_ == -1]
+
+    # In a perfect world we would have different clusters for different weather conditions
+    # But maybe (if we arent lucky) if one device is broken, it is just wrongly classified (less power generated due to an error -> misinterpreted as cloudy weather)
+    # Normally the photoresistor value should prevent this as this sensor would still identify the correct weather (if it isnt broken as well) but ¯\_(°_°)_/¯
+    # An additional check if the datapoint of each device for one timestamp are in the same cluster could prevent this (or at least minimize the occurance of this error)
+
     return outliers_df
