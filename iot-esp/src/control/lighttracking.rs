@@ -41,6 +41,13 @@ impl Sub<&MotorAngles> for &MotorAngles {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Direction {
+    None,
+    Left,
+    Right,
+}
+
 pub trait PlatformTrait<
     Motor1Pin1: OutputPin,
     Motor1Pin2: OutputPin,
@@ -159,6 +166,7 @@ pub struct Platform<
 
     last_angle_hor: i32,
     last_angle_ver: i32,
+    hor_direction: Direction,
 }
 
 impl<
@@ -222,6 +230,7 @@ impl<
             interpolator_button,
             last_angle_hor: 0,
             last_angle_ver: 0,
+            hor_direction: Direction::None
         }
     }
 
@@ -230,6 +239,7 @@ impl<
         self.stepper_motor_hor.stop_motor();
         self.stepper_motor_ver.rotate_to_angle(High, 0);
         self.stepper_motor_ver.stop_motor();
+        self.hor_direction = Direction::None;
     }
 
     fn reset_if_button_pressed<Adc, ADC>(&mut self, adc: &mut Adc) -> bool
@@ -404,11 +414,20 @@ impl<
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();
         let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
-        self.stepper_motor_hor
-            .rotate_to_angle(High, init_angle_hor - angle_hor / 2);
+        if self.hor_direction == Direction::None {
+            self.stepper_motor_hor
+                .rotate_to_angle(High, init_angle_hor - angle_hor / 2);
+        }
 
         for angle in (init_angle_hor - angle_hor / 2)..(init_angle_hor + angle_hor / 2) {
-            let angle_hor = self.stepper_motor_hor.rotate_to_angle(speed, angle);
+            let angle_hor = if self.hor_direction == Direction::None {
+                self.stepper_motor_hor.rotate_to_angle(speed, angle)
+            } else if angle == init_angle_hor {
+                // if we only search in one direction we can skip half of the search
+                break;
+            } else {
+                self.stepper_motor_hor.rotate_left_right(speed, self.hor_direction)
+            };
             let photoresistor = self.read_photoresistor(adc)?;
 
             if best_photoresistor > photoresistor {
@@ -420,6 +439,12 @@ impl<
         // Move to best horizontal position
         self.stepper_motor_hor.rotate_to_angle(High, best_angle_hor);
         self.stepper_motor_hor.stop_motor();
+
+        self.hor_direction = if best_angle_hor > init_angle_hor {
+            Direction::Left
+        }else {
+            Direction::Right
+        };
 
         self.stepper_motor_ver
             .rotate_to_angle(High, init_angle_ver - angle_ver / 2);
