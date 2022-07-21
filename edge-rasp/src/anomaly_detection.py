@@ -86,9 +86,9 @@ Your Mobile Solar Panels Team
     for email_receiver in conf.anomaly_detection.email_receivers:
         message["To"] = email_receiver
 
-        await aiosmtplib.send(message, conf.anomaly_detection.smtp.email_sender, email_receiver,
-                              conf.anomaly_detection.smtp.host, conf.anomaly_detection.smtp.port,
-                              conf.anomaly_detection.smtp.user, conf.anomaly_detection.smtp.password,
+        await aiosmtplib.send(message=message, sender=conf.anomaly_detection.smtp.email_sender, recipients=email_receiver,
+                              hostname=conf.anomaly_detection.smtp.host, port=conf.anomaly_detection.smtp.port,
+                              username=conf.anomaly_detection.smtp.user, password=conf.anomaly_detection.smtp.password,
                               use_tls=True)
 
 
