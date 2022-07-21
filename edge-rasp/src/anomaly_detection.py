@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 import db
 import asyncpg
@@ -13,22 +14,23 @@ from model import Config
 from email.message import EmailMessage
 
 MIN_DATAPOINTS = 20
-ANOMALY_DETECTION_INTERVAL = datetime.timedelta(minutes=10).total_seconds()
-REPORT_INTERVAL = datetime.timedelta(minutes=180).total_seconds()
+ANOMALY_DETECTION_INTERVAL = int(datetime.timedelta(minutes=int(os.environ["ANOMALY_DETECTION_INTERVAL_MINUTES"])).total_seconds())
+REPORT_INTERVAL = int(datetime.timedelta(minutes=int(os.environ["REPORT_INTERVAL_MINUTES"])).total_seconds())
 
 
 async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
     if not (REPORT_INTERVAL % ANOMALY_DETECTION_INTERVAL == 0):
-        logging.critical(f"REPORT_INTERVAL '{REPORT_INTERVAL}' must be a multiple of ANOMALY_DETECTION_INTERVAL"
-                         f"'{ANOMALY_DETECTION_INTERVAL}'")
+        logging.error(f"REPORT_INTERVAL '{REPORT_INTERVAL}' must be a multiple of ANOMALY_DETECTION_INTERVAL"
+                      f"'{ANOMALY_DETECTION_INTERVAL}'")
 
     await worker(pool, conf)
 
 
 async def worker(pool: asyncpg.Pool, conf: Config):
     outliers_dfs = pd.DataFrame()
-    rounds = REPORT_INTERVAL / ANOMALY_DETECTION_INTERVAL
-    curr_round = 0
+    # Due to REPORT_INTERVAL % ANOMALY_DETECTION_INTERVAL == 0 this does not remove decimal digits
+    rounds = int(REPORT_INTERVAL / ANOMALY_DETECTION_INTERVAL)
+    curr_round = 1
 
     while True:
         await asyncio.sleep(ANOMALY_DETECTION_INTERVAL)
@@ -48,7 +50,6 @@ async def worker(pool: asyncpg.Pool, conf: Config):
         else:
             curr_round = 0
             await send_mail(conf, pd.concat(outliers_dfs))
-
 
 
 async def send_mail(conf: Config, outliers_df: pd.DataFrame):
@@ -74,7 +75,6 @@ we have detected anomalies in your solar plants. The following devices may be af
 Best regards,
 Your Mobile Solar Panels Team
 """
-
 
     message = EmailMessage()
     message["From"] = conf.anomaly_detection.smtp.user

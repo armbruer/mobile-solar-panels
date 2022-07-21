@@ -12,7 +12,7 @@ from coap import run_coap
 from anomaly_detection import run_anomaly_detection
 from mqtt import run_mqtt
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 
 async def main():
