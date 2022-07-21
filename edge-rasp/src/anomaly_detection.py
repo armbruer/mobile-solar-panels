@@ -27,7 +27,7 @@ async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
 
 
 async def worker(pool: asyncpg.Pool, conf: Config):
-    outliers_dfs = pd.DataFrame()
+    outliers_dfs = []
     # Due to REPORT_INTERVAL % ANOMALY_DETECTION_INTERVAL == 0 this does not remove decimal digits
     rounds = int(REPORT_INTERVAL / ANOMALY_DETECTION_INTERVAL)
     curr_round = 1
@@ -53,7 +53,9 @@ async def worker(pool: asyncpg.Pool, conf: Config):
 
 
 async def send_mail(conf: Config, outliers_df: pd.DataFrame):
-    devices = ', '.join(map(str, set(outliers_df.sort_values(by=['device_id'])['device_id'].tolist())))
+    device_ids = outliers_df['device_id'].unique()
+    device_ids.sort()
+    devices = ', '.join(map(str, device_ids))
 
     outliers_dfs = [y for _, y in pd.groupby('device_id', as_index=False)]
     anomalies = []
