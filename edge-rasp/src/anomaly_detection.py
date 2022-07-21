@@ -87,14 +87,13 @@ Your Mobile Solar Panels Team
         await aiosmtplib.send(message, conf.anomaly_detection.smtp.email_sender, email_receiver,
                               conf.anomaly_detection.smtp.host, conf.anomaly_detection.smtp.port,
                               conf.anomaly_detection.smtp.user, conf.anomaly_detection.smtp.password,
-                              start_tls=True)
+                              use_tls=True)
 
 
 async def run_dbscan(df: pd.DataFrame):
     data = df[["temperature", "power", "photoresistor"]]
-    X = StandardScaler().fit(data)
-    model: DBSCAN = DBSCAN(eps=0.5, min_samples=5).fit(X)
+    model: DBSCAN = DBSCAN(eps=0.5, min_samples=5).fit(data)
 
-    # not sure if this works
-    outliers_df = data[model.labels_ == -1]
+    # Use "df" that all columns are present
+    outliers_df = df[model.labels_ == -1]
     return outliers_df
