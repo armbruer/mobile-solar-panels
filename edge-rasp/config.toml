@@ -11,7 +11,7 @@ port = 5432
 database = "solarpanels"
 
 [anomaly_detection]
-email_receivers = ["eric.armbruster@tum.de"]
+email_receivers = ["edge-rasp@maflo321.de"]
 
 [anomaly_detection.smtp]
 user = "<user>"

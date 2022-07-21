@@ -11,6 +11,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    volumes:
+      - ./config.toml:/build/config.toml:ro
     restart: unless-stopped
     deploy:
       resources:
