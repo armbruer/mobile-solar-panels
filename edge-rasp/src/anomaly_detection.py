@@ -77,16 +77,16 @@ Your Mobile Solar Panels Team
 
 
     message = EmailMessage()
-    message["From"] = conf.ad.smtp.user
+    message["From"] = conf.anomaly_detection.smtp.user
     message["Subject"] = "Report: Anomalies detected"
     message.set_content(content)
 
-    for email_receiver in conf.ad.email_receivers:
+    for email_receiver in conf.anomaly_detection.email_receivers:
         message["To"] = email_receiver
 
-        await aiosmtplib.send(message, conf.ad.smtp.email_sender, email_receiver,
-                              conf.ad.smtp.host, conf.ad.smtp.port,
-                              conf.ad.smtp.user, conf.ad.smtp.password,
+        await aiosmtplib.send(message, conf.anomaly_detection.smtp.email_sender, email_receiver,
+                              conf.anomaly_detection.smtp.host, conf.anomaly_detection.smtp.port,
+                              conf.anomaly_detection.smtp.user, conf.anomaly_detection.smtp.password,
                               start_tls=True)
 
 

@@ -38,7 +38,7 @@ class ConfigAnomalyDetection(BaseModel):
 class Config(BaseModel):
     db: ConfigDB
     broker: ConfigBroker
-    ad: ConfigAnomalyDetection
+    anomaly_detection: ConfigAnomalyDetection
 
 
 class CommandTypes(enum.Enum):

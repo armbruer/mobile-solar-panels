@@ -6,10 +6,11 @@ import db
 from pydantic import ValidationError
 from model import CommandState
 from http_server import run_http_server
-from mqtt import Config, run_mqtt
+from model import Config
 from db import run_db
 from coap import run_coap
 from anomaly_detection import run_anomaly_detection
+from mqtt import run_mqtt
 
 logging.basicConfig(level=logging.DEBUG)
 
