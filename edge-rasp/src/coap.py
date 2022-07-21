@@ -8,7 +8,6 @@ import aiocoap.numbers.codes
 import aiocoap.resource as resource
 import suncalc
 
-import model
 from model import CommandState, DataPoint, Command, CommandTypes
 
 
@@ -77,11 +76,13 @@ class CommandResource(resource.Resource):
 
 
 class SensorData(resource.Resource):
-    received_data_points: asyncio.Queue
+    received_data_points_db: asyncio.Queue
+    received_data_points_mqtt: asyncio.Queue
 
-    def __init__(self, received_data_points):
+    def __init__(self, received_data_points_db, received_data_points_mqtt):
         super().__init__()
-        self.received_data_points = received_data_points
+        self.received_data_points_db = received_data_points_db
+        self.received_data_points_mqtt = received_data_points_mqtt
 
     def get_link_description(self):
         # Publish additional data in .well-known/core
@@ -104,41 +105,47 @@ class SensorData(resource.Resource):
 
         client_current_time_size = 8
 
-        expected_packet_size = length_size + client_current_time_size + model.DataPoint.get_serialized_size() * length
+        expected_packet_size = length_size + client_current_time_size + DataPoint.get_serialized_size() * length
         if len(payload) != expected_packet_size:
             return aiocoap.Message(code=aiocoap.numbers.codes.Code.BAD_REQUEST,
                                    payload=b"Expected packet size: " + str(expected_packet_size).encode())
 
-        client_current_time = int.from_bytes(payload[4:12], byteorder='little', signed=False)
-        client_current_time = datetime.datetime.utcfromtimestamp(client_current_time)
+        datapoints = self.parse_payload(client_current_time_size, edge_current_time, length_size, payload)
 
-        data = []
-
-        index = length_size + client_current_time_size
-        while index < len(payload):
-            dp = DataPoint.deserialize(payload[index:index + model.DataPoint.get_serialized_size()])
-            index += model.DataPoint.get_serialized_size()
-            time_passed = client_current_time - dp.timestamp
-            dp.timestamp = edge_current_time - time_passed
-
-            data.append(dp)
-
-        assert index == len(payload)
-
-        logging.debug("Sending datapoints to message queue...")
-        await self.received_data_points.put(data)
+        logging.debug("Sending datapoints to queues...")
+        await self.received_data_points_mqtt.put(datapoints)
+        await self.received_data_points_db.put(datapoints)
+        logging.debug("Sent datapoints to queues...")
 
         return aiocoap.Message(code=aiocoap.numbers.codes.Code.CHANGED, payload=b"ok")
 
+    def parse_payload(self, client_current_time_size, edge_current_time, length_size, payload):
+        client_current_time = int.from_bytes(payload[4:12], byteorder='little', signed=False)
+        client_current_time = datetime.datetime.utcfromtimestamp(client_current_time)
 
-async def run_coap(received_data_points: asyncio.Queue, command_state: CommandState,
-                   command_state_lock: asyncio.Lock):
+        datapoints = []
+        index = length_size + client_current_time_size
+
+        while index < len(payload):
+            dp = DataPoint.deserialize(payload[index:index + DataPoint.get_serialized_size()])
+            index += DataPoint.get_serialized_size()
+            time_passed = client_current_time - dp.timestamp
+            dp.timestamp = edge_current_time - time_passed
+
+            datapoints.append(dp)
+
+        assert index == len(payload)
+        return datapoints
+
+
+async def run_coap(received_data_points_db: asyncio.Queue, received_data_points_mqtt: asyncio.Queue,
+                   command_state: CommandState, command_state_lock: asyncio.Lock):
     # Resource tree creation
     root = resource.Site()
     root.add_resource(['.well-known', 'core'],
                       resource.WKCResource(root.get_resources_as_linkheader))
     root.add_resource(['command'], CommandResource(command_state, command_state_lock))
-    root.add_resource(['sensor', 'data'], SensorData(received_data_points))
+    root.add_resource(['sensor', 'data'], SensorData(received_data_points_db, received_data_points_mqtt))
 
     logging.info("Creating CoAP server context")
     await aiocoap.Context.create_server_context(root)

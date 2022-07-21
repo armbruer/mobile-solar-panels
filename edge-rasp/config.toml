@@ -1,0 +1,21 @@
+[broker]
+host = "broker"
+port = 1883
+client_id = "rasp1.client"
+
+[db]
+user = "postgres"
+password = "postgres"
+host = "solarpanels_db"
+port = 5432
+database = "solarpanels"
+
+[anomaly_detection]
+email_receivers = ["edge-rasp@maflo321.de"]
+
+[anomaly_detection.smtp]
+user = "<user>"
+password = "<password>"
+host = "<host>"
+port = <port>
+email_sender = "<sender_email>"

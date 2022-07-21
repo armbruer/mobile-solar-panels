@@ -4,7 +4,11 @@ toml
 pydantic
 aiohttp
 # speedup aiohttp
-#cchardet
+cchardet
 aiodns
 Brotli
 suncalc
+asyncpg
+scikit-learn
+pandas
+aiosmtplib
