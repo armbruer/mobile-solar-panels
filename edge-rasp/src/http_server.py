@@ -53,8 +53,10 @@ async def stop(request: Request):
 
 async def control(_request: Request):
     command_state = _request.app['command_state']
-    file = open("control.html", "r").read()
-    return web.Response(text=file.format(command=command_state.command), content_type='text/html')
+    with open("control.html", "r") as f:
+        file_content = f.read()
+    file_content = file_content.replace("{command}", command_state.command.name)
+    return web.Response(text=file_content, content_type='text/html')
 
 
 async def generate_data(received_data_points: asyncio.Queue):
