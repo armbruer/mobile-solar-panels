@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ops::{Add, Sub};
 
 use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
@@ -41,8 +42,8 @@ impl Sub<&MotorAngles> for &MotorAngles {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum Direction {
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Direction {
     None,
     Left,
     Right,
@@ -230,7 +231,7 @@ impl<
             interpolator_button,
             last_angle_hor: 0,
             last_angle_ver: 0,
-            hor_direction: Direction::None
+            hor_direction: Direction::None,
         }
     }
 
@@ -440,10 +441,10 @@ impl<
         self.stepper_motor_hor.rotate_to_angle(High, best_angle_hor);
         self.stepper_motor_hor.stop_motor();
 
-        self.hor_direction = if best_angle_hor > init_angle_hor {
-            Direction::Left
-        }else {
-            Direction::Right
+        self.hor_direction = match best_angle_hor.cmp(&init_angle_hor) {
+            Ordering::Greater => Direction::Left,
+            Ordering::Equal => Direction::None,
+            Ordering::Less => Direction::Right,
         };
 
         self.stepper_motor_ver
