@@ -34,9 +34,9 @@ class CommandResource(resource.Resource):
         target_angle_offset_ver = int.from_bytes(request.payload[8:12], byteorder='little', signed=True)
 
         # Set new leader if no leader is defined or the last request from the current leader is too long ago
-        now = datetime.datetime.utcnow()
         max_request_time = datetime.timedelta(minutes=2)
-        if self.command_state.leader_device_id is None or (now - self.command_state.last_leaderupdate) > max_request_time:
+        if self.command_state.leader_device_id is None \
+                or (datetime.datetime.utcnow() - self.command_state.last_leader_update) > max_request_time:
             self.command_state.leader_device_id = device_id
 
         if self.command_state.leader_device_id == device_id:
