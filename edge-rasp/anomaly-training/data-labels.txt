@@ -1,0 +1,9 @@
+Timestamps in UTC
+
+Start      LED: Grün
+14:17:00   LED: Rot, Grün, Blau
+14:31:00   Solarpanel Folie entfernt
+15:21:00   Blatt Papier auf einem Panel
+15:23:00   kein Blatt Papier mehr
+15:25:00   Blatt Papier auf anderem Panel
+15:26:00   kein Blatt Papier mehr
