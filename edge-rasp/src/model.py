@@ -59,6 +59,7 @@ class CommandState:
     local_timezone: datetime.timezone
 
     leader_device_id: Optional[int]
+    last_leader_update: Optional[datetime.datetime]
 
     @staticmethod
     def default():
@@ -72,6 +73,7 @@ class CommandState:
         self.longitude = 0.0
         self.local_timezone = datetime.timezone.utc
         self.leader_device_id = None
+        self.last_leader_update = None
 
     def __deepcopy__(self, memo):  # memo is a dict of id's to copies
         id_self = id(self)  # memoization avoids unnecessary recursion
@@ -84,7 +86,8 @@ class CommandState:
                 deepcopy(self.latitude, memo),
                 deepcopy(self.longitude, memo),
                 deepcopy(self.local_timezone, memo),
-                deepcopy(self.leader_device_id, memo))
+                deepcopy(self.leader_device_id, memo),
+                deepcopy(self.last_leader_update, memo))
             memo[id_self] = _copy
         return _copy
 
