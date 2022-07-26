@@ -63,7 +63,7 @@ class CommandState:
 
     @staticmethod
     def default():
-        return CommandState(CommandTypes.Nop, 0, 0, 0.0, 0.0, datetime.timezone.utc, None)
+        return CommandState(CommandTypes.Nop, 0, 0, 0.0, 0.0, datetime.timezone.utc, None, None)
 
     def reset(self):
         self.command = CommandTypes.Nop
