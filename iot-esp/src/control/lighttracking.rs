@@ -415,20 +415,19 @@ impl<
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();
         let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
-        if self.hor_direction == Direction::None {
-            self.stepper_motor_hor
-                .rotate_to_angle(High, init_angle_hor - angle_hor / 2);
-        }
+        let search_range = match self.hor_direction {
+            Direction::None => {
+                self.stepper_motor_hor
+                    .rotate_to_angle(High, init_angle_hor - angle_hor / 2);
+                (init_angle_hor - angle_hor / 2)..(init_angle_hor + angle_hor / 2)
+            }
+            // if we only search in one direction we can skip half of the search
+            Direction::Left => init_angle_hor..(init_angle_hor + angle_hor / 2),
+            Direction::Right => (init_angle_hor - angle_hor / 2)..init_angle_hor,
+        };
 
-        for angle in (init_angle_hor - angle_hor / 2)..(init_angle_hor + angle_hor / 2) {
-            let angle_hor = if self.hor_direction == Direction::None {
-                self.stepper_motor_hor.rotate_to_angle(speed, angle)
-            } else if angle == init_angle_hor {
-                // if we only search in one direction we can skip half of the search
-                break;
-            } else {
-                self.stepper_motor_hor.rotate_left_right(speed, self.hor_direction)
-            };
+        for angle in search_range {
+            let angle_hor = self.stepper_motor_hor.rotate_to_angle(speed, angle);
             let photoresistor = self.read_photoresistor(adc)?;
 
             if best_photoresistor > photoresistor {
