@@ -17,5 +17,5 @@ email_receivers = ["edge-rasp@maflo321.de"]
 user = "<user>"
 password = "<password>"
 host = "<host>"
-port = "<port>"
+port = <port>
 email_sender = "<sender_email>"
