@@ -3,6 +3,7 @@ import numpy as np
 
 from sklearn.neighbors import NearestNeighbors
 from matplotlib import pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
 
 def main():
@@ -11,9 +12,11 @@ def main():
 
     dataset = pd.read_csv(filepath_or_buffer="data.csv", sep=";", usecols=[2,3,4])
 
+    scaler = StandardScaler()
+    scaler = scaler.fit_transform(dataset)
     neighbors = NearestNeighbors(n_neighbors=6)  # 2 * dimension
-    neighbors_fit = neighbors.fit(dataset)
-    distances, indices = neighbors_fit.kneighbors(dataset)
+    neighbors_fit = neighbors.fit(scaler)
+    distances, indices = neighbors_fit.kneighbors(scaler)
 
     distances = np.sort(distances, axis=0)
     distances = distances[:, 1]
