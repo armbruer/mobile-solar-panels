@@ -13,9 +13,8 @@ from model import Config
 from email.message import EmailMessage
 
 MIN_DATAPOINTS = 20
-ANOMALY_DETECTION_INTERVAL = int(datetime.timedelta(minutes=int(os.environ["ANOMALY_DETECTION_INTERVAL_MINUTES"])).total_seconds())
-# TODO: Remove if not needed
-# REPORT_INTERVAL = int(datetime.timedelta(minutes=int(os.environ["REPORT_INTERVAL_MINUTES"])).total_seconds())
+ANOMALY_DETECTION_INTERVAL = int(datetime.timedelta(
+    minutes=int(os.environ["ANOMALY_DETECTION_INTERVAL_MINUTES"])).total_seconds())
 
 
 async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
@@ -72,10 +71,10 @@ Your Mobile Solar Panels Team
     for email_receiver in conf.anomaly_detection.email_receivers:
         message["To"] = email_receiver
 
-        await aiosmtplib.send(message=message, sender=conf.anomaly_detection.smtp.email_sender, recipients=email_receiver,
-                              hostname=conf.anomaly_detection.smtp.host, port=conf.anomaly_detection.smtp.port,
-                              username=conf.anomaly_detection.smtp.user, password=conf.anomaly_detection.smtp.password,
-                              use_tls=True)
+        await aiosmtplib.send(message=message, sender=conf.anomaly_detection.smtp.email_sender,
+                              recipients=email_receiver, hostname=conf.anomaly_detection.smtp.host,
+                              port=conf.anomaly_detection.smtp.port, username=conf.anomaly_detection.smtp.user,
+                              password=conf.anomaly_detection.smtp.password, use_tls=True)
 
 
 async def run_dbscan(df: pd.DataFrame):
