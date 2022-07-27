@@ -38,7 +38,7 @@ async def worker(pool: asyncpg.Pool, conf: Config):
 
 async def run_dbscan(df: pd.DataFrame):
     data = df[["temperature", "power", "photoresistor"]]
-    model: DBSCAN = DBSCAN(eps=0.5, min_samples=5).fit(data)
+    model: DBSCAN = DBSCAN(eps=8, min_samples=6).fit(data)
 
     # Use "df" that all columns are present
     outliers_df = df[model.labels_ == -1]
