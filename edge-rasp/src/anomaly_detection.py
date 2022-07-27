@@ -49,8 +49,9 @@ async def run_dbscan(df: pd.DataFrame):
 
 
 async def test():
-    dataset = pd.read_csv(filepath_or_buffer="../anomaly-data/data.csv", sep=";", usecols=[2, 3, 4])
+    dataset = pd.read_csv(filepath_or_buffer="../anomaly-data/data.csv", sep=";", usecols=[0, 2, 3, 4])
     outliers = await run_dbscan(dataset)
+    print(outliers.shape)
     print(outliers)
 
 
