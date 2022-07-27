@@ -20,7 +20,11 @@ def main():
 
     distances = np.sort(distances, axis=0)
     distances = distances[:, 1]
-    plt.plot(distances)
+
+    fig, (ax1, ax2) = plt.subplots(2)
+    fig.suptitle('Hyperparameter determination')
+    ax1.plot(scaler)
+    ax2.plot(distances)
     plt.show()
 
 
