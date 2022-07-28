@@ -10,6 +10,7 @@ services:
       - DATA_COLLECTION_INTERVAL_SECONDS=60
       #- ANOMALY_DETECTION_INTERVAL_SECONDS=600
       #- REPORT_INTERVAL_MINUTES=180
+      #- ANOMALY_DETECTION_METHOD=threshold
     build:
       context: .
       dockerfile: Dockerfile

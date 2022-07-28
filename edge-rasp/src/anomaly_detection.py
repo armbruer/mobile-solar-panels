@@ -14,6 +14,7 @@ from model import Config
 MIN_DATAPOINTS = 20
 ANOMALY_DETECTION_INTERVAL = int(datetime.timedelta(
     seconds=int(os.environ.get("ANOMALY_DETECTION_INTERVAL_SECONDS", 30))).total_seconds())
+ANOMALY_DETECTION_METHOD = str(os.environ.get("ANOMALY_DETECTION_METHOD", "dbscan"))
 
 
 async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
@@ -36,7 +37,12 @@ async def worker(pool: asyncpg.Pool, conf: Config):
             logging.warning("Not enough data for anomaly detection available")
             continue
 
-        reported_anomalies = await mail.send_mail(conf, await run_dbscan(df), reported_anomalies)
+        if ANOMALY_DETECTION_METHOD == "threshold":
+            outliers = await run_threshold(df)
+        else:
+            outliers = await run_dbscan(df)
+
+        reported_anomalies = await mail.send_mail(conf, outliers, reported_anomalies)
 
 
 async def run_threshold(df: pd.DataFrame):
