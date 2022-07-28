@@ -13,7 +13,7 @@ from model import Config
 
 MIN_DATAPOINTS = 20
 ANOMALY_DETECTION_INTERVAL = int(datetime.timedelta(
-    minutes=int(os.environ.get("ANOMALY_DETECTION_INTERVAL_MINUTES", 60*10))).total_seconds())
+    seconds=int(os.environ.get("ANOMALY_DETECTION_INTERVAL_SECONDS", 30))).total_seconds())
 
 
 async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
