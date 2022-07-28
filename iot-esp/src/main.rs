@@ -103,7 +103,7 @@ fn main() -> Result<(), EspError> {
         pins.gpio27.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio12.into_output()?,
-        (FULL_ROTATION_ANGLE as f32 / 1.35) as i32,
+        (FULL_ROTATION_ANGLE as f32 / 1.6) as i32,
         1,
         1,
         false,
@@ -198,6 +198,7 @@ fn main() -> Result<(), EspError> {
     // TODO: Poll some time for edge and then start with default mode
     let mut command = Command::default();
     let mut world_angles_offset = MotorAngles::default();
+    let mut initial_platform_offset = MotorAngles::default();
 
     'stop_loop: loop {
         'main_loop: loop {
@@ -205,7 +206,7 @@ fn main() -> Result<(), EspError> {
             let new_command = match request_command(
                 &mut coap_conn,
                 addr,
-                &(&platform1.get_current_angles() - &world_angles_offset),
+                &(&platform1.get_current_angles() - &initial_platform_offset),
                 device_id,
             ) {
                 Some(cmd) => cmd,
@@ -219,11 +220,12 @@ fn main() -> Result<(), EspError> {
                     CommandType::Nop => (),
                     CommandType::Follower | CommandType::Location => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
-                        world_angles_offset = platform1.get_current_angles();
+                        initial_platform_offset = platform1.get_current_angles();
                     }
                     CommandType::LightTracking => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
 
+                        initial_platform_offset = platform1.get_current_angles();
                         world_angles_offset = platform1.get_current_angles();
                         let (angle_offset_hor, angle_offset_ver) =
                             convert_azimuth_altitude(new_command.azimuth, new_command.altitude);
@@ -247,6 +249,7 @@ fn main() -> Result<(), EspError> {
                         &mut platform1,
                         &command,
                         &world_angles_offset,
+                        &initial_platform_offset,
                     )
                 }
                 CommandType::Stop => panic!("Requested to execute stop"),
@@ -318,6 +321,7 @@ fn control_platform<
     platform1: &mut T,
     command: &Command,
     world_angles_offset: &MotorAngles,
+    initial_platform_offset: &MotorAngles,
 ) -> u32
 where
     Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
@@ -347,8 +351,8 @@ where
         }
         CommandType::Follower => {
             platform1.rotate_to_angle(
-                world_angles_offset.motor_ver + command.target_angle_offset_ver,
-                world_angles_offset.motor_hor + command.target_angle_offset_hor,
+                initial_platform_offset.motor_ver + command.target_angle_offset_ver,
+                initial_platform_offset.motor_hor + command.target_angle_offset_hor,
             );
             10
         }
