@@ -47,7 +47,7 @@ async def run_dbscan(df: pd.DataFrame):
     data = df[["temperature", "power", "photoresistor"]]
     scaler = StandardScaler()
     scaler = scaler.fit_transform(data)
-    model: DBSCAN = DBSCAN(eps=0.245, min_samples=6).fit(scaler)
+    model: DBSCAN = DBSCAN(eps=0.6, min_samples=6).fit(scaler)
 
     # Use "df" that all columns are present
     outliers_df = df[model.labels_ == -1]
