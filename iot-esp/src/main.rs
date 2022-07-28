@@ -105,8 +105,8 @@ fn main() -> Result<(), EspError> {
         pins.gpio12.into_output()?,
         (FULL_ROTATION_ANGLE as f32 / 1.35) as i32,
         1,
-        0,
-        true,
+        1,
+        false,
     );
 
     let config_photoresistor = adc_interpolator::Config {
@@ -181,14 +181,13 @@ fn main() -> Result<(), EspError> {
     return Ok(());
     */
 
-    // TODO: For now the initial position at angle 0 is assumed
-    // platform1.init_motors(&mut powered_adc);
-
     let _wifi = networking::wifi::wifi(
         Arc::new(EspNetifStack::new()?),
         Arc::new(EspSysLoopStack::new()?),
         Arc::new(EspDefaultNvs::new()?),
     );
+
+    platform1.init_motors(&mut powered_adc).unwrap();
 
     let mut coap_conn = Connection::new();
 
@@ -277,8 +276,6 @@ fn main() -> Result<(), EspError> {
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
-
-            std::thread::sleep(Duration::from_millis(10000));
         }
 
         platform1.reset_motors_position();
