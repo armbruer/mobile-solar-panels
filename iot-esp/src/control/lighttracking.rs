@@ -419,15 +419,16 @@ impl<
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();
         let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
-        let search_range = match self.hor_direction {
+        let search_range: Vec<i32> = match self.hor_direction {
             Direction::None => {
-                self.stepper_motor_hor
-                    .rotate_to_angle(Speed::HighMedium, init_angle_hor - angle_hor / 2);
-                (init_angle_hor - angle_hor / 2)..(init_angle_hor + angle_hor / 2)
+                ((init_angle_hor - angle_hor / 2)..=(init_angle_hor + angle_hor / 2)).collect()
             }
             // if we only search in one direction we can skip half of the search
-            Direction::Left => init_angle_hor..(init_angle_hor + angle_hor / 2),
-            Direction::Right => (init_angle_hor - angle_hor / 2)..init_angle_hor,
+            Direction::Left => (init_angle_hor..=(init_angle_hor + angle_hor / 2)).collect(),
+            // Always start rotation at init_angle to reduce travel distance
+            Direction::Right => ((init_angle_hor - angle_hor / 2)..=init_angle_hor)
+                .rev()
+                .collect(),
         };
 
         for angle in search_range {
@@ -479,7 +480,7 @@ impl<
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
-        self.search_scope(adc, Speed::Low, 80, 40)?;
+        self.search_scope(adc, Speed::Medium, 80, 40)?;
 
         let new_angle_hor = self.stepper_motor_hor.current_angle();
         let new_angle_ver = self.stepper_motor_ver.current_angle();
