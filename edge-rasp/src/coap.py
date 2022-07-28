@@ -1,6 +1,7 @@
 import asyncio
 import datetime
 import logging
+import os
 from copy import deepcopy
 
 import aiocoap
@@ -9,6 +10,9 @@ import aiocoap.resource as resource
 import suncalc
 
 from model import CommandState, DataPoint, Command, CommandTypes
+
+LEADER_CONNECTION_TIMEOUT = int(datetime.timedelta(
+    seconds=int(os.environ.get("LEADER_CONNECTION_TIMEOUT_SECONDS", 60))).total_seconds())
 
 
 class CommandResource(resource.Resource):
@@ -34,7 +38,7 @@ class CommandResource(resource.Resource):
         target_angle_offset_ver = int.from_bytes(request.payload[8:12], byteorder='little', signed=True)
 
         # Set new leader if no leader is defined or the last request from the current leader is too long ago
-        max_request_time = datetime.timedelta(minutes=2)
+        max_request_time = datetime.timedelta(seconds=LEADER_CONNECTION_TIMEOUT)
         if self.command_state.leader_device_id is None \
                 or (datetime.datetime.utcnow() - self.command_state.last_leader_update) > max_request_time:
             self.command_state.leader_device_id = device_id
