@@ -36,6 +36,13 @@ async def worker(pool: asyncpg.Pool, conf: Config):
         await mail.send_mail(conf, await run_dbscan(df))
 
 
+async def run_threshold(df: pd.DataFrame):
+    # thresholds are based on the data we collected with ~20-30% margin
+    return pd.concat([df[df["power"] < 60], df[df["power"] > 1000],
+                      df[df["temperature"] > 100.0], df[df["temperature"] < -30.0],
+                      df[df["photoresistor"] < 90], df[df["photoresistor"] > 300]])
+
+
 async def run_dbscan(df: pd.DataFrame):
     data = df[["temperature", "power", "photoresistor"]]
     scaler = StandardScaler()
