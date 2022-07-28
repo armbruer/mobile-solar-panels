@@ -21,6 +21,9 @@ async def run_anomaly_detection(pool: asyncpg.Pool, conf: Config):
 
 
 async def worker(pool: asyncpg.Pool, conf: Config):
+    # Better: store this information in database, then it is persistent across restarts
+    reported_anomalies = []
+
     while True:
         await asyncio.sleep(ANOMALY_DETECTION_INTERVAL)
 
@@ -33,7 +36,7 @@ async def worker(pool: asyncpg.Pool, conf: Config):
             logging.warning("Not enough data for anomaly detection available")
             continue
 
-        await mail.send_mail(conf, await run_dbscan(df))
+        reported_anomalies = await mail.send_mail(conf, await run_dbscan(df), reported_anomalies)
 
 
 async def run_threshold(df: pd.DataFrame):

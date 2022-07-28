@@ -1,11 +1,13 @@
 import aiosmtplib
 import pandas as pd
+import datetime
 
+from typing import List
 from email.message import EmailMessage
 from model import Config
 
 
-async def send_mail(conf: Config, outliers_df: pd.DataFrame):
+async def send_mail(conf: Config, outliers_df: pd.DataFrame, reported_anomalies: List[str]):
     device_ids = outliers_df['device_id'].unique()
     device_ids.sort()
     devices = ', '.join(map(str, device_ids))
@@ -14,8 +16,11 @@ async def send_mail(conf: Config, outliers_df: pd.DataFrame):
     anomalies = []
     for df in outliers_dfs:
         device_id = str(df.head(1)['device_id'].values[0])
-        anomaly_datetimes = ', '.join(map(lambda x: x.isoformat(),
-                                          df['time'].sort_values()))
+        anomaly_dates = list(map(lambda x: x.isoformat(), df['time'].sort_values()))
+        anomaly_dates_no_duplicates = filter(lambda x: x not in reported_anomalies, anomaly_dates)
+
+        reported_anomalies += anomaly_dates_no_duplicates
+        anomaly_datetimes = ', '.join(anomaly_dates_no_duplicates)
         anomalies.append(device_id + ': ' + anomaly_datetimes)
 
     outliers = '\n'.join(anomalies)
@@ -43,3 +48,5 @@ Your Mobile Solar Panels Team
                               recipients=email_receiver, hostname=conf.anomaly_detection.smtp.host,
                               port=conf.anomaly_detection.smtp.port, username=conf.anomaly_detection.smtp.user,
                               password=conf.anomaly_detection.smtp.password, use_tls=True)
+
+    return reported_anomalies
