@@ -39,10 +39,16 @@ async def worker(pool: asyncpg.Pool, conf: Config):
 
         if ANOMALY_DETECTION_METHOD == "threshold":
             outliers = await run_threshold(df)
-        else:
+        elif ANOMALY_DETECTION_METHOD == "dbscan":
             outliers = await run_dbscan(df)
+        else:
+            raise ValueError("ANOMALY_DETECTION_METHOD must be one of 'threshold' and 'dbscan'")
 
-        await mail.send_mail(conf, outliers, reported_anomalies)
+        outliers = outliers[~outliers['time'].isin(reported_anomalies)]
+        reported_anomalies.update(list(outliers['time']))
+
+        if outliers.size > 0:
+            await mail.send_mail(conf, outliers)
 
 
 async def run_threshold(df: pd.DataFrame):
