@@ -1,5 +1,7 @@
 # db code is based on https://github.com/dominicmason555/mqtt_to_timescale/blob/master/mqtt_to_timescale.py
 import asyncio
+import datetime
+
 import asyncpg
 import logging
 import pandas as pd
@@ -23,7 +25,8 @@ INSERT INTO sensor (time, device_id, temperature, photoresistor, power) VALUES (
 """
 
 QUERY_GET_SENSORS = """
-SELECT * FROM sensor;
+SELECT * FROM sensor
+WHERE time >= $1;
 """
 
 
@@ -83,13 +86,13 @@ async def parse_insert(datapoints: List[DataPoint], conn: asyncpg.connection):
             logging.error(f"Sensors DB connection failure during storing data: {ex}")
 
 
-async def get_datapoints(pool: asyncpg.Pool) -> pd.DataFrame:
+async def get_datapoints(pool: asyncpg.Pool, start_time: datetime.datetime) -> pd.DataFrame:
     try:
         async with pool.acquire() as conn:
             async with conn.transaction():
                 stmt = await conn.prepare(QUERY_GET_SENSORS)
                 columns = [a.name for a in stmt.get_attributes()]
-                data = await stmt.fetch()
+                data = await stmt.fetch(start_time)
                 return pd.DataFrame(data, columns=columns)
 
     except asyncpg.InterfaceError as ex:

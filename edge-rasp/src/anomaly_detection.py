@@ -28,7 +28,7 @@ async def worker(pool: asyncpg.Pool, conf: Config):
     while True:
         await asyncio.sleep(ANOMALY_DETECTION_INTERVAL)
 
-        df: pd.DataFrame = await db.get_datapoints(pool)
+        df: pd.DataFrame = await db.get_datapoints(pool, datetime.datetime.utcnow() - datetime.timedelta(hours=2))
         length = len(df.index)
         if length == 0:
             logging.warning("No data for anomaly detection available")
