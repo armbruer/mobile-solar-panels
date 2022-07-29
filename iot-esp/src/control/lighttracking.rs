@@ -87,7 +87,7 @@ pub trait PlatformTrait<
 
     fn test_movement(&mut self);
 
-    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32);
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32, speed: Speed);
 
     fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
@@ -303,12 +303,10 @@ impl<
         }
     }
 
-    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32) {
-        self.stepper_motor_ver
-            .rotate_to_angle(Speed::High, ver_angle);
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32, speed: Speed) {
+        self.stepper_motor_ver.rotate_to_angle(speed, ver_angle);
         self.stepper_motor_ver.stop_motor();
-        self.stepper_motor_hor
-            .rotate_to_angle(Speed::High, hor_angle);
+        self.stepper_motor_hor.rotate_to_angle(speed, hor_angle);
         self.stepper_motor_hor.stop_motor();
     }
 

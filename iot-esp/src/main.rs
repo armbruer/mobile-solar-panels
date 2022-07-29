@@ -24,7 +24,7 @@ use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys
 
 use networking::coap::Connection;
 use num_enum::TryFromPrimitive;
-use sensors::motor::StepperMotor;
+use sensors::motor::{Speed, StepperMotor};
 
 #[derive(Clone, Copy, Debug)]
 struct DataPoint {
@@ -353,6 +353,7 @@ where
             platform1.rotate_to_angle(
                 initial_platform_offset.motor_ver + command.target_angle_offset_ver,
                 initial_platform_offset.motor_hor + command.target_angle_offset_hor,
+                Speed::Medium,
             );
             10
         }
@@ -363,6 +364,7 @@ where
             platform1.rotate_to_angle(
                 angle_ver + world_angles_offset.motor_ver,
                 angle_hor + world_angles_offset.motor_hor,
+                Speed::Medium,
             );
             // TODO: calc sleep_time similar to follow_light
             10
