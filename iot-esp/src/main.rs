@@ -218,14 +218,14 @@ fn main() -> Result<(), EspError> {
                 // Init the platform for the new command
                 match new_command.command {
                     CommandType::Nop => (),
-                    CommandType::Follower | CommandType::Location => {
+                    CommandType::Follower | CommandType::LightTracking => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
                         initial_platform_offset = platform1.get_current_angles();
                     }
-                    CommandType::LightTracking => {
+                    CommandType::Location => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
-
                         initial_platform_offset = platform1.get_current_angles();
+
                         world_angles_offset = platform1.get_current_angles();
                         let (angle_offset_hor, angle_offset_ver) =
                             convert_azimuth_altitude(new_command.azimuth, new_command.altitude);
