@@ -74,13 +74,13 @@ impl<
     }
 
     pub fn rotatable_to_angle(&mut self, angle: i32) -> bool {
-        if angle < 0 || angle > self.max_angle {
+        if angle < 0 || angle > self.max_angle || self.current_angle == angle {
             return false;
         }
         if self.current_angle < angle {
-            (self.current_angle + self.step_size) < angle
+            (self.current_angle + self.step_size) <= angle
         } else {
-            (self.current_angle - self.step_size) > angle
+            (self.current_angle - self.step_size) >= angle
         }
     }
 

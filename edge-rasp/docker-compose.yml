@@ -10,6 +10,7 @@ services:
       - DATA_COLLECTION_INTERVAL_SECONDS=60
       #- ANOMALY_DETECTION_INTERVAL_SECONDS=600
       - ANOMALY_DETECTION_METHOD=threshold
+      - LEADER_CONNECTION_TIMEOUT_SECONDS=60
     build:
       context: .
       dockerfile: Dockerfile

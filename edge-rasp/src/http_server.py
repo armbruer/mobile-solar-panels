@@ -52,10 +52,12 @@ async def stop(request: Request):
 
 
 async def control(_request: Request):
-    command_state = _request.app['command_state']
+    command_state: CommandState = _request.app['command_state']
     with open("control.html", "r") as f:
         file_content = f.read()
-    file_content = file_content.replace("{command}", command_state.command.name)
+    file_content = file_content\
+        .replace("{command}", command_state.command.name)\
+        .replace("{leader_device}", str(command_state.leader_device_id))
     return web.Response(text=file_content, content_type='text/html')
 
 

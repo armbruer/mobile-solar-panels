@@ -28,7 +28,7 @@ async def worker(pool: asyncpg.Pool, conf: Config):
     while True:
         await asyncio.sleep(ANOMALY_DETECTION_INTERVAL)
 
-        df: pd.DataFrame = await db.get_datapoints(pool)
+        df: pd.DataFrame = await db.get_datapoints(pool, datetime.datetime.utcnow() - datetime.timedelta(hours=2))
         length = len(df.index)
         if length == 0:
             logging.warning("No data for anomaly detection available")
@@ -39,15 +39,21 @@ async def worker(pool: asyncpg.Pool, conf: Config):
 
         if ANOMALY_DETECTION_METHOD == "threshold":
             outliers = await run_threshold(df)
-        else:
+        elif ANOMALY_DETECTION_METHOD == "dbscan":
             outliers = await run_dbscan(df)
+        else:
+            raise ValueError("ANOMALY_DETECTION_METHOD must be one of 'threshold' and 'dbscan'")
 
-        await mail.send_mail(conf, outliers, reported_anomalies)
+        outliers = outliers[~outliers['time'].isin(reported_anomalies)]
+        reported_anomalies.update(list(outliers['time']))
+
+        if outliers.size > 0:
+            await mail.send_mail(conf, outliers)
 
 
 async def run_threshold(df: pd.DataFrame):
     # thresholds are based on the data we collected with ~20-30% margin
-    return pd.concat([df[df["power"] < 60], df[df["power"] > 1000],
+    return pd.concat([df[df["power"] < 60], df[df["power"] > 3000],
                       df[df["temperature"] > 100.0], df[df["temperature"] < -30.0],
                       df[df["photoresistor"] < 90], df[df["photoresistor"] > 300]])
 

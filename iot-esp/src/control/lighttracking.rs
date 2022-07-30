@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 use std::ops::{Add, Sub};
 
-use crate::sensors::motor::Speed::{self, High, HighMedium, Low, Medium};
+use crate::sensors::motor::Speed;
 use crate::sensors::motor::StepperMotor;
 use adc_interpolator::AdcInterpolator;
 use embedded_hal::{
@@ -87,7 +87,7 @@ pub trait PlatformTrait<
 
     fn test_movement(&mut self);
 
-    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32);
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32, speed: Speed);
 
     fn init_motors<Adc, ADC>(&mut self, adc: &mut Adc) -> Result<(), LightTrackingError>
     where
@@ -236,9 +236,9 @@ impl<
     }
 
     fn reset_motors_position(&mut self) {
-        self.stepper_motor_hor.rotate_to_angle(High, 0);
+        self.stepper_motor_hor.rotate_to_angle(Speed::High, 0);
         self.stepper_motor_hor.stop_motor();
-        self.stepper_motor_ver.rotate_to_angle(High, 0);
+        self.stepper_motor_ver.rotate_to_angle(Speed::High, 0);
         self.stepper_motor_ver.stop_motor();
         self.hor_direction = Direction::None;
     }
@@ -279,11 +279,11 @@ impl<
         let test_horizontal = true;
         if test_horizontal {
             for _ in 0..1000 {
-                current_angle = self.stepper_motor_hor.rotate_left(Low);
+                current_angle = self.stepper_motor_hor.rotate_left(Speed::Low);
             }
             log::info!("Rotate horizontal left stopped at angle {}", current_angle);
             for _ in 0..1000 {
-                current_angle = self.stepper_motor_hor.rotate_right(Low);
+                current_angle = self.stepper_motor_hor.rotate_right(Speed::Low);
             }
             log::info!("Rotate horizontal right stopped at angle {}", current_angle);
             self.stepper_motor_hor.stop_motor();
@@ -292,21 +292,21 @@ impl<
         let test_vertical = true;
         if test_vertical {
             for _ in 0..1000 {
-                current_angle = self.stepper_motor_ver.rotate_left(Low);
+                current_angle = self.stepper_motor_ver.rotate_left(Speed::Low);
             }
             log::info!("Rotate vertical left stopped at angle {}", current_angle);
             for _ in 0..1000 {
-                current_angle = self.stepper_motor_ver.rotate_right(Low);
+                current_angle = self.stepper_motor_ver.rotate_right(Speed::Low);
             }
             log::info!("Rotate vertical right stopped at angle {}", current_angle);
             self.stepper_motor_ver.stop_motor();
         }
     }
 
-    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32) {
-        self.stepper_motor_ver.rotate_to_angle(High, ver_angle);
+    fn rotate_to_angle(&mut self, ver_angle: i32, hor_angle: i32, speed: Speed) {
+        self.stepper_motor_ver.rotate_to_angle(speed, ver_angle);
         self.stepper_motor_ver.stop_motor();
-        self.stepper_motor_hor.rotate_to_angle(High, hor_angle);
+        self.stepper_motor_hor.rotate_to_angle(speed, hor_angle);
         self.stepper_motor_hor.stop_motor();
     }
 
@@ -320,22 +320,22 @@ impl<
     {
         log::info!("Initiating motors position");
 
-        let ir_sensor_data_close1: u32 = 1500;
-        let ir_sensor_data_close2: u32 = 1500;
+        let ir_sensor_data_close: u32 = 1500;
 
+        /*
         // init stepper_motor_ver angle
         log::info!("Rotating vertical until IR sensor hits");
-        while self.read_ir(adc)? > ir_sensor_data_close1 {
-            self.stepper_motor_ver.rotate_left(Medium);
+        while self.read_ir(adc)? > ir_sensor_data_close {
+            self.stepper_motor_ver.rotate_right(Speed::Low);
         }
         self.stepper_motor_ver.stop_motor();
         self.stepper_motor_ver.init_angle();
+        */
 
         // init stepper_motor_hor angle
-        //maybe use a second ir sensor
         log::info!("Rotating horizontal until IR sensor hits");
-        while self.read_ir(adc)? > ir_sensor_data_close2 {
-            self.stepper_motor_hor.rotate_left(Low);
+        while self.read_ir(adc)? > ir_sensor_data_close {
+            self.stepper_motor_hor.rotate_right(Speed::Low);
         }
         self.stepper_motor_hor.stop_motor();
         self.stepper_motor_hor.init_angle();
@@ -360,7 +360,7 @@ impl<
         let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
         while self.stepper_motor_hor.rotatable_left() {
-            let angle_hor = self.stepper_motor_hor.rotate_left(HighMedium);
+            let angle_hor = self.stepper_motor_hor.rotate_left(Speed::HighMedium);
             let photoresistor = self.read_photoresistor(adc)?;
 
             if best_photoresistor > photoresistor {
@@ -370,14 +370,15 @@ impl<
         }
         log::info!("Found best horizontal light at {}", best_angle_hor);
         // Move to best horizontal position
-        self.stepper_motor_hor.rotate_to_angle(High, best_angle_hor);
+        self.stepper_motor_hor
+            .rotate_to_angle(Speed::High, best_angle_hor);
         self.stepper_motor_hor.stop_motor();
 
         let half_max_angle = self.stepper_motor_ver.max_angle() / 2;
         while self.stepper_motor_ver.rotatable_to_angle(half_max_angle) {
             let angle_ver = self
                 .stepper_motor_ver
-                .rotate_single_step_to_angle(HighMedium, half_max_angle);
+                .rotate_single_step_to_angle(Speed::HighMedium, half_max_angle);
             let photoresistor = self.read_photoresistor(adc)?;
 
             if best_photoresistor > photoresistor {
@@ -387,7 +388,8 @@ impl<
         }
         log::info!("Found best vertical light at {}", best_angle_ver);
         // Move to best vertical position
-        self.stepper_motor_ver.rotate_to_angle(High, best_angle_ver);
+        self.stepper_motor_ver
+            .rotate_to_angle(Speed::High, best_angle_ver);
         self.stepper_motor_ver.stop_motor();
 
         Ok(())
@@ -415,15 +417,16 @@ impl<
         let mut best_angle_hor = self.stepper_motor_hor.current_angle();
         let mut best_angle_ver = self.stepper_motor_ver.current_angle();
 
-        let search_range = match self.hor_direction {
+        let search_range: Vec<i32> = match self.hor_direction {
             Direction::None => {
-                self.stepper_motor_hor
-                    .rotate_to_angle(High, init_angle_hor - angle_hor / 2);
-                (init_angle_hor - angle_hor / 2)..(init_angle_hor + angle_hor / 2)
+                ((init_angle_hor - angle_hor / 2)..=(init_angle_hor + angle_hor / 2)).collect()
             }
             // if we only search in one direction we can skip half of the search
-            Direction::Left => init_angle_hor..(init_angle_hor + angle_hor / 2),
-            Direction::Right => (init_angle_hor - angle_hor / 2)..init_angle_hor,
+            Direction::Left => (init_angle_hor..=(init_angle_hor + angle_hor / 2)).collect(),
+            // Always start rotation at init_angle to reduce travel distance
+            Direction::Right => ((init_angle_hor - angle_hor / 2)..=init_angle_hor)
+                .rev()
+                .collect(),
         };
 
         for angle in search_range {
@@ -437,7 +440,8 @@ impl<
         }
         log::info!("Found best horizontal light at {}", best_angle_hor);
         // Move to best horizontal position
-        self.stepper_motor_hor.rotate_to_angle(High, best_angle_hor);
+        self.stepper_motor_hor
+            .rotate_to_angle(Speed::HighMedium, best_angle_hor);
         self.stepper_motor_hor.stop_motor();
 
         self.hor_direction = match best_angle_hor.cmp(&init_angle_hor) {
@@ -447,7 +451,7 @@ impl<
         };
 
         self.stepper_motor_ver
-            .rotate_to_angle(High, init_angle_ver - angle_ver / 2);
+            .rotate_to_angle(Speed::HighMedium, init_angle_ver - angle_ver / 2);
         for angle in (init_angle_ver - angle_ver / 2)..(init_angle_ver + angle_ver / 2) {
             let angle_ver = self.stepper_motor_ver.rotate_to_angle(speed, angle);
             let photoresistor = self.read_photoresistor(adc)?;
@@ -459,7 +463,8 @@ impl<
         }
         log::info!("Found best vertical light at {}", best_angle_ver);
         // Move to best vertical position
-        self.stepper_motor_ver.rotate_to_angle(High, best_angle_ver);
+        self.stepper_motor_ver
+            .rotate_to_angle(Speed::HighMedium, best_angle_ver);
         self.stepper_motor_ver.stop_motor();
 
         Ok(())
@@ -473,7 +478,7 @@ impl<
         Pin3: Channel<ADC>,
         Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
     {
-        self.search_scope(adc, Low, 80, 40)?;
+        self.search_scope(adc, Speed::Medium, 80, 40)?;
 
         let new_angle_hor = self.stepper_motor_hor.current_angle();
         let new_angle_ver = self.stepper_motor_ver.current_angle();

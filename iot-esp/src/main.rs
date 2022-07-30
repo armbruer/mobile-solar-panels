@@ -24,7 +24,7 @@ use esp_idf_sys::{self as _}; // If using the `binstart` feature of `esp-idf-sys
 
 use networking::coap::Connection;
 use num_enum::TryFromPrimitive;
-use sensors::motor::StepperMotor;
+use sensors::motor::{Speed, StepperMotor};
 
 #[derive(Clone, Copy, Debug)]
 struct DataPoint {
@@ -103,10 +103,10 @@ fn main() -> Result<(), EspError> {
         pins.gpio27.into_output()?,
         pins.gpio14.into_output()?,
         pins.gpio12.into_output()?,
-        (FULL_ROTATION_ANGLE as f32 / 1.35) as i32,
+        (FULL_ROTATION_ANGLE as f32 / 1.6) as i32,
         1,
-        0,
-        true,
+        1,
+        false,
     );
 
     let config_photoresistor = adc_interpolator::Config {
@@ -181,14 +181,13 @@ fn main() -> Result<(), EspError> {
     return Ok(());
     */
 
-    // TODO: For now the initial position at angle 0 is assumed
-    // platform1.init_motors(&mut powered_adc);
-
     let _wifi = networking::wifi::wifi(
         Arc::new(EspNetifStack::new()?),
         Arc::new(EspSysLoopStack::new()?),
         Arc::new(EspDefaultNvs::new()?),
     );
+
+    platform1.init_motors(&mut powered_adc).unwrap();
 
     let mut coap_conn = Connection::new();
 
@@ -199,6 +198,7 @@ fn main() -> Result<(), EspError> {
     // TODO: Poll some time for edge and then start with default mode
     let mut command = Command::default();
     let mut world_angles_offset = MotorAngles::default();
+    let mut initial_platform_offset = MotorAngles::default();
 
     'stop_loop: loop {
         'main_loop: loop {
@@ -206,7 +206,7 @@ fn main() -> Result<(), EspError> {
             let new_command = match request_command(
                 &mut coap_conn,
                 addr,
-                &(&platform1.get_current_angles() - &world_angles_offset),
+                &(&platform1.get_current_angles() - &initial_platform_offset),
                 device_id,
             ) {
                 Some(cmd) => cmd,
@@ -218,12 +218,13 @@ fn main() -> Result<(), EspError> {
                 // Init the platform for the new command
                 match new_command.command {
                     CommandType::Nop => (),
-                    CommandType::Follower | CommandType::Location => {
+                    CommandType::Follower | CommandType::LightTracking => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
-                        world_angles_offset = platform1.get_current_angles();
+                        initial_platform_offset = platform1.get_current_angles();
                     }
-                    CommandType::LightTracking => {
+                    CommandType::Location => {
                         platform1.find_best_position(&mut powered_adc).unwrap();
+                        initial_platform_offset = platform1.get_current_angles();
 
                         world_angles_offset = platform1.get_current_angles();
                         let (angle_offset_hor, angle_offset_ver) =
@@ -248,6 +249,7 @@ fn main() -> Result<(), EspError> {
                         &mut platform1,
                         &command,
                         &world_angles_offset,
+                        &initial_platform_offset,
                     )
                 }
                 CommandType::Stop => panic!("Requested to execute stop"),
@@ -277,8 +279,6 @@ fn main() -> Result<(), EspError> {
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
-
-            std::thread::sleep(Duration::from_millis(10000));
         }
 
         platform1.reset_motors_position();
@@ -321,6 +321,7 @@ fn control_platform<
     platform1: &mut T,
     command: &Command,
     world_angles_offset: &MotorAngles,
+    initial_platform_offset: &MotorAngles,
 ) -> u32
 where
     Adc: OneShot<ADC, Word, Pin1> + OneShot<ADC, Word, Pin2> + OneShot<ADC, Word, Pin3>,
@@ -350,8 +351,9 @@ where
         }
         CommandType::Follower => {
             platform1.rotate_to_angle(
-                world_angles_offset.motor_ver + command.target_angle_offset_ver,
-                world_angles_offset.motor_hor + command.target_angle_offset_hor,
+                initial_platform_offset.motor_ver + command.target_angle_offset_ver,
+                initial_platform_offset.motor_hor + command.target_angle_offset_hor,
+                Speed::Medium,
             );
             10
         }
@@ -362,6 +364,7 @@ where
             platform1.rotate_to_angle(
                 angle_ver + world_angles_offset.motor_ver,
                 angle_hor + world_angles_offset.motor_hor,
+                Speed::Medium,
             );
             // TODO: calc sleep_time similar to follow_light
             10

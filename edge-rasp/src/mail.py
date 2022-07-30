@@ -8,7 +8,7 @@ from email.message import EmailMessage
 from model import Config
 
 
-async def send_mail(conf: Config, outliers_df: pd.DataFrame, reported_anomalies: Set[str]):
+async def send_mail(conf: Config, outliers_df: pd.DataFrame):
     device_ids = outliers_df['device_id'].unique()
     device_ids.sort()
     devices = ', '.join(map(str, device_ids))
@@ -18,10 +18,8 @@ async def send_mail(conf: Config, outliers_df: pd.DataFrame, reported_anomalies:
     for df in outliers_dfs:
         device_id = str(df.head(1)['device_id'].values[0])
         anomaly_dates = list(map(lambda x: x.isoformat(), df['time'].sort_values()))
-        anomaly_dates_no_duplicates = filter(lambda x: x not in reported_anomalies, anomaly_dates)
 
-        reported_anomalies.update(anomaly_dates_no_duplicates)
-        anomaly_datetimes = ', '.join(anomaly_dates_no_duplicates)
+        anomaly_datetimes = ', '.join(anomaly_dates)
         anomalies.append(device_id + ': ' + anomaly_datetimes)
 
     outliers = '\n'.join(anomalies)
